@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.speech.tts.TextToSpeech
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -18,36 +17,28 @@ import android.view.ViewGroup
 import android.content.ActivityNotFoundException
 import java.util.Locale
 
-class MainActivity : Activity(), TextToSpeech.OnInitListener {
+class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var command: TextView
-    private var tts: TextToSpeech? = null
-    private var hindiTtsReady = false
+    private var voiceEngine: JarvisVoiceEngine? = null
+    private var voiceReady = false
     private val requestAudio = 1001
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.rgb(3, 10, 22)
         window.navigationBarColor = Color.rgb(3, 10, 22)
-        tts = TextToSpeech(this, this)
+        voiceEngine = JarvisVoiceEngine(this) { ready ->
+            runOnUiThread {
+                voiceReady = ready
+                if (!ready) status.text = "HINDI VOICE NOT INSTALLED"
+            }
+        }
         buildScreen()
     }
 
-    override fun onInit(result: Int) {
-        if (result == TextToSpeech.SUCCESS) {
-            val language = tts?.setLanguage(Locale("hi", "IN"))
-            hindiTtsReady = language != TextToSpeech.LANG_MISSING_DATA &&
-                language != TextToSpeech.LANG_NOT_SUPPORTED
-            if (hindiTtsReady) {
-                tts?.setSpeechRate(0.92f)
-                tts?.setPitch(1.04f)
-            }
-            if (!hindiTtsReady) status.text = "HINDI VOICE NOT INSTALLED"
-        }
-    }
-
     private fun speakHindi(message: String) {
-        if (hindiTtsReady) tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "jarvis-hindi-reply")
+        if (voiceReady) voiceEngine?.speakHindi(message)
     }
 
     private fun buildScreen() {
@@ -150,6 +141,8 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
     }
 
     override fun onDestroy() {
-        tts?.stop(); tts?.shutdown(); super.onDestroy()
+        voiceEngine?.release()
+        voiceEngine = null
+        super.onDestroy()
     }
 }
