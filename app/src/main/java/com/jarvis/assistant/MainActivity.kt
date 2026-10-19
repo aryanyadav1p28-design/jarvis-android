@@ -38,6 +38,10 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
             val language = tts?.setLanguage(Locale("hi", "IN"))
             hindiTtsReady = language != TextToSpeech.LANG_MISSING_DATA &&
                 language != TextToSpeech.LANG_NOT_SUPPORTED
+            if (hindiTtsReady) {
+                tts?.setSpeechRate(0.92f)
+                tts?.setPitch(1.04f)
+            }
             if (!hindiTtsReady) status.text = "HINDI VOICE NOT INSTALLED"
         }
     }
@@ -66,7 +70,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
             setTextColor(Color.rgb(160, 205, 224))
         }
         command = TextView(this).apply {
-            text = "माइक दबाकर हिंदी में कमांड बोलें।"; textSize = 17f
+            text = "माइक दबाकर हिंदी में बात करें।"; textSize = 17f
             gravity = Gravity.CENTER; setTextColor(Color.rgb(190, 216, 231))
             setPadding(12, 28, 12, 28)
         }
