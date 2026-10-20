@@ -4,5 +4,5 @@
     android:accessibilityFeedbackType="feedbackSpoken"
     android:notificationTimeout="250"
     android:canRetrieveWindowContent="true"
-    android:description="@string/app_name"
+    android:description="Screen text reading for JARVIS"
     android:accessibilityFlags="flagReportViewIds" />
