@@ -7,27 +7,48 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.Spinner
 import android.widget.TextView
-import android.widget.Toast
 import android.view.Gravity
 import android.graphics.Color
 import android.view.ViewGroup
 import android.content.ActivityNotFoundException
+import android.content.IntentSender
+import android.widget.Toast
+import com.google.android.gms.auth.api.identity.AuthorizationRequest
+import com.google.android.gms.auth.api.identity.AuthorizationResult
+import com.google.android.gms.auth.api.identity.Identity
+import com.google.android.gms.common.api.Scope
 import java.util.Locale
 
 class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var command: TextView
+    private lateinit var memoryInput: EditText
+    private lateinit var categorySpinner: Spinner
     private var voiceEngine: JarvisVoiceEngine? = null
     private var voiceReady = false
+    private var driveAccessToken: String? = null
+    private var driveMemory: DriveMemoryManager? = null
     private val requestAudio = 1001
+    private val requestSpeech = 1002
+    private val requestDriveAuthorization = 1003
+    private val driveScope = "https://www.googleapis.com/auth/drive.file"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.rgb(3, 10, 22)
         window.navigationBarColor = Color.rgb(3, 10, 22)
+        driveMemory = DriveMemoryManager { message ->
+            runOnUiThread {
+                status.text = message.take(220)
+                Toast.makeText(this, message.take(220), Toast.LENGTH_LONG).show()
+            }
+        }
         voiceEngine = JarvisVoiceEngine(this) { ready ->
             runOnUiThread {
                 voiceReady = ready
@@ -45,7 +66,7 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(28, 36, 28, 32)
+            setPadding(28, 24, 28, 24)
             setBackgroundColor(Color.rgb(3, 10, 22))
         }
         val title = TextView(this).apply {
@@ -57,22 +78,92 @@ class MainActivity : Activity() {
             gravity = Gravity.CENTER; setTextColor(Color.WHITE)
         }
         status = TextView(this).apply {
-            text = "SYSTEM READY"; textSize = 16f; gravity = Gravity.CENTER
+            text = "SYSTEM READY"; textSize = 14f; gravity = Gravity.CENTER
             setTextColor(Color.rgb(160, 205, 224))
+            setPadding(0, 10, 0, 10)
         }
         command = TextView(this).apply {
-            text = "माइक दबाकर हिंदी में बात करें।"; textSize = 17f
+            text = "माइक दबाकर हिंदी में बात करें।"; textSize = 16f
             gravity = Gravity.CENTER; setTextColor(Color.rgb(190, 216, 231))
-            setPadding(12, 28, 12, 28)
+            setPadding(12, 10, 12, 12)
         }
         val mic = Button(this).apply {
             text = "🎙  JARVIS से बात करें"; textSize = 16f
             setOnClickListener { requestVoiceCommand() }
         }
-        listOf(title, name, status, command, mic).forEach {
+        val driveConnect = Button(this).apply {
+            text = "Google Drive Connect"
+            setOnClickListener { authorizeDrive() }
+        }
+        val memoryTitle = TextView(this).apply {
+            text = "JARVIS MEMORY"; textSize = 16f; gravity = Gravity.CENTER
+            setTextColor(Color.rgb(103, 232, 249))
+            setPadding(0, 12, 0, 4)
+        }
+        categorySpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(
+                this@MainActivity,
+                android.R.layout.simple_spinner_dropdown_item,
+                listOf("Personal", "Projects", "Learned_Knowledge", "Important_Notes")
+            )
+        }
+        memoryInput = EditText(this).apply {
+            hint = "Yahan memory note likho..."
+            minLines = 2
+            gravity = Gravity.TOP
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.LTGRAY)
+            setPadding(12, 10, 12, 10)
+        }
+        val saveMemory = Button(this).apply {
+            text = "Selected category mein Save"
+            setOnClickListener {
+                val token = driveAccessToken
+                if (token == null) status.text = "पहले Google Drive Connect दबाएँ।"
+                else driveMemory?.save(token, selectedCategory(), memoryInput.text.toString())
+            }
+        }
+        val readMemory = Button(this).apply {
+            text = "Selected category ki Memory Padho"
+            setOnClickListener {
+                val token = driveAccessToken
+                if (token == null) status.text = "पहले Google Drive Connect दबाएँ।"
+                else driveMemory?.readLatest(token, selectedCategory())
+            }
+        }
+        listOf(title, name, status, command, mic, driveConnect, memoryTitle, categorySpinner, memoryInput, saveMemory, readMemory).forEach {
             root.addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
         setContentView(root)
+    }
+
+    private fun selectedCategory(): String = categorySpinner.selectedItem?.toString() ?: "Personal"
+
+    private fun authorizeDrive() {
+        val request = AuthorizationRequest.builder()
+            .setRequestedScopes(listOf(Scope(driveScope)))
+            .build()
+        Identity.getAuthorizationClient(this)
+            .authorize(request)
+            .addOnSuccessListener { result ->
+                if (result.hasResolution()) {
+                    try {
+                        startIntentSenderForResult(
+                            result.pendingIntent!!.intentSender,
+                            requestDriveAuthorization, null, 0, 0, 0
+                        )
+                    } catch (_: IntentSender.SendIntentException) {
+                        status.text = "DRIVE AUTHORIZATION COULD NOT OPEN"
+                    }
+                } else {
+                    driveAccessToken = result.accessToken
+                    status.text = if (driveAccessToken.isNullOrBlank()) "DRIVE TOKEN NOT RECEIVED" else "GOOGLE DRIVE CONNECTED"
+                    speakHindi("Google Drive connect ho gaya.")
+                }
+            }
+            .addOnFailureListener { error ->
+                status.text = "DRIVE AUTH FAILED: ${error.message ?: "try again"}".take(180)
+            }
     }
 
     private fun requestVoiceCommand() {
@@ -92,7 +183,7 @@ class MainActivity : Activity() {
         }
         try {
             status.text = "LISTENING..."
-            startActivityForResult(intent, 1002)
+            startActivityForResult(intent, requestSpeech)
         } catch (_: ActivityNotFoundException) {
             status.text = "VOICE SERVICE UNAVAILABLE"
             speakHindi("वॉइस सेवा उपलब्ध नहीं है।")
@@ -102,7 +193,18 @@ class MainActivity : Activity() {
     @Deprecated("Activity result callback retained for broad device compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != 1002 || resultCode != RESULT_OK) return
+        if (requestCode == requestDriveAuthorization) {
+            if (resultCode == RESULT_OK) {
+                val result = AuthorizationResult.fromIntent(data)
+                driveAccessToken = result?.accessToken
+                status.text = if (driveAccessToken.isNullOrBlank()) "DRIVE TOKEN NOT RECEIVED" else "GOOGLE DRIVE CONNECTED"
+                if (!driveAccessToken.isNullOrBlank()) speakHindi("Google Drive connect ho gaya.")
+            } else {
+                status.text = "DRIVE AUTHORIZATION CANCELLED"
+            }
+            return
+        }
+        if (requestCode != requestSpeech || resultCode != RESULT_OK) return
         val spoken = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
         command.text = spoken.ifBlank { "कमांड समझ नहीं आई।" }
         handleCommand(spoken.lowercase(Locale.ROOT))
@@ -143,6 +245,8 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         voiceEngine?.release()
         voiceEngine = null
+        driveMemory?.close()
+        driveMemory = null
         super.onDestroy()
     }
 }
