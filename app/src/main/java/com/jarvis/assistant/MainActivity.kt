@@ -60,6 +60,7 @@ class MainActivity : Activity() {
             }
         }
         buildScreen()
+        handleWakeIntent(intent)
     }
 
     private fun speakHindi(message: String) {
@@ -94,6 +95,18 @@ class MainActivity : Activity() {
         val mic = Button(this).apply {
             text = "🎙  JARVIS से बात करें"; textSize = 16f
             setOnClickListener { requestVoiceCommand() }
+        }
+        val wakeStart = Button(this).apply {
+            text = "🎧  Hello JARVIS — Background Listening ON"
+            setOnClickListener { startWakeWordListener() }
+        }
+        val wakeStop = Button(this).apply {
+            text = "⏹  Wake Word Listening OFF"
+            setOnClickListener {
+                stopService(Intent(this@MainActivity, JarvisWakeWordService::class.java))
+                status.text = "WAKE WORD LISTENING OFF"
+                speakHindi("Wake word listening band kar diya.")
+            }
         }
         val driveConnect = Button(this).apply {
             text = "Google Drive Connect"
@@ -166,10 +179,45 @@ class MainActivity : Activity() {
                 else driveMemory?.readLatest(token, selectedCategory())
             }
         }
-        listOf(title, name, status, command, mic, driveConnect, memoryTitle, categorySpinner, memoryInput, teachButton, importPdf, searchLessons, saveMemory, readMemory).forEach {
+        listOf(title, name, status, command, mic, wakeStart, wakeStop, driveConnect, memoryTitle, categorySpinner, memoryInput, teachButton, importPdf, searchLessons, saveMemory, readMemory).forEach {
             root.addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
         setContentView(root)
+    }
+
+    private fun startWakeWordListener() {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), requestAudio)
+            status.text = "Microphone permission allow karke phir wake-word ON dabao."
+            return
+        }
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            status.text = "PHONE SPEECH RECOGNITION SERVICE AVAILABLE NAHI HAI"
+            return
+        }
+        try {
+            val intent = Intent(this, JarvisWakeWordService::class.java)
+            if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+            status.text = "WAKE WORD ON — bolo: Hello JARVIS"
+            speakHindi("Hello JARVIS wake word listening chalu ho gaya. Notification dikhai degi.")
+        } catch (e: Exception) {
+            status.text = "WAKE WORD START FAILED: ${e.message ?: "permission required"}".take(180)
+        }
+    }
+
+    private fun handleWakeIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(JarvisWakeWordService.EXTRA_WAKE_DETECTED, false) == true) {
+            intent.removeExtra(JarvisWakeWordService.EXTRA_WAKE_DETECTED)
+            status.text = "HELLO JARVIS DETECTED — ab apni command bolo"
+            command.text = "Wake word suna. Ab command boliye."
+            window.decorView.postDelayed({ requestVoiceCommand() }, 500)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleWakeIntent(intent)
     }
 
     private fun selectedCategory(): String = categorySpinner.selectedItem?.toString() ?: "Personal"
