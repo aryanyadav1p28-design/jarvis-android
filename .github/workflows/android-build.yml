@@ -9,6 +9,7 @@ on:
       - '**.kts'
       - 'app/src/**'
       - '.github/workflows/android-build.yml'
+      - 'gradle.properties'
 
 permissions:
   contents: read
