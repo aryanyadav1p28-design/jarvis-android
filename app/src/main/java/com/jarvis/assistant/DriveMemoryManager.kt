@@ -6,12 +6,12 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.UUID
+import java.net.URLEncoder
 import java.util.concurrent.Executors
 
 /**
- * Minimal Drive-backed memory store. Files are created by JARVIS in the user's
- * Drive and separated by category. Network work runs off the main thread.
+ * Drive-backed memory store. Creates metadata as JSON, then uploads text as media
+ * in a separate request to avoid malformed multipart JSON payloads.
  */
 class DriveMemoryManager(
     private val onResult: (String) -> Unit
@@ -28,37 +28,47 @@ class DriveMemoryManager(
             try {
                 val safeCategory = category.replace(Regex("[^A-Za-z0-9_-]"), "_")
                 val fileName = "JARVIS_Memory_${safeCategory}.txt"
-                val boundary = "jarvis-${UUID.randomUUID()}"
-                val metadata = JSONObject()
-                    .put("name", fileName)
-                    .put("mimeType", "text/plain")
-                val body = buildString {
-                    append("--").append(boundary).append("\r\n")
-                    append("Content-Type: application/json; charset=UTF-8\r\n\r\n")
-                    append(metadata.toString()).append("\r\n")
-                    append("--").append(boundary).append("\r\n")
-                    append("Content-Type: text/plain; charset=UTF-8\r\n\r\n")
-                    append(note).append("\r\n")
-                    append("--").append(boundary).append("--\r\n")
-                }
-                val connection = (URL("$baseUrl?uploadType=multipart&fields=id,name").openConnection() as HttpURLConnection).apply {
+                val metadata = JSONObject().put("name", fileName).put("mimeType", "text/plain")
+                val create = (URL("$baseUrl?fields=id,name").openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
                     setRequestProperty("Authorization", "Bearer $accessToken")
-                    setRequestProperty("Content-Type", "multipart/related; boundary=$boundary")
+                    setRequestProperty("Content-Type", "application/json; charset=UTF-8")
                     setRequestProperty("Accept", "application/json")
                     doOutput = true
                     connectTimeout = 15000
                     readTimeout = 15000
                 }
-                connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-                val code = connection.responseCode
-                val response = readResponse(connection, code)
-                connection.disconnect()
-                if (code in 200..299) {
-                    val fileId = runCatching { JSONObject(response).optString("id") }.getOrDefault("")
-                    onResult("Drive में $category memory सेव हो गई।" + if (fileId.isNotBlank()) "\nFile ID: $fileId" else "")
+                create.outputStream.use { it.write(metadata.toString().toByteArray(Charsets.UTF_8)) }
+                val createCode = create.responseCode
+                val createText = readResponse(create, createCode)
+                create.disconnect()
+                if (createCode !in 200..299) {
+                    onResult("Drive save error ($createCode): ${friendlyError(createText)}")
+                    return@execute
+                }
+                val id = JSONObject(createText).optString("id")
+                if (id.isBlank()) {
+                    onResult("Drive save error: Google ने file ID नहीं लौटाई।")
+                    return@execute
+                }
+
+                val upload = (URL("$baseUrl/$id?uploadType=media").openConnection() as HttpURLConnection).apply {
+                    requestMethod = "PATCH"
+                    setRequestProperty("Authorization", "Bearer $accessToken")
+                    setRequestProperty("Content-Type", "text/plain; charset=UTF-8")
+                    setRequestProperty("Accept", "application/json")
+                    doOutput = true
+                    connectTimeout = 15000
+                    readTimeout = 15000
+                }
+                upload.outputStream.use { it.write(note.toByteArray(Charsets.UTF_8)) }
+                val uploadCode = upload.responseCode
+                val uploadText = readResponse(upload, uploadCode)
+                upload.disconnect()
+                if (uploadCode in 200..299) {
+                    onResult("Drive में $category memory सेव हो गई।\nFile ID: $id")
                 } else {
-                    onResult("Drive save error ($code): ${friendlyError(response)}")
+                    onResult("Drive content upload error ($uploadCode): ${friendlyError(uploadText)}")
                 }
             } catch (e: Exception) {
                 onResult("Drive save नहीं हुआ: ${e.message ?: "network error"}")
@@ -71,7 +81,7 @@ class DriveMemoryManager(
             try {
                 val safeCategory = category.replace(Regex("[^A-Za-z0-9_-]"), "_")
                 val fileName = "JARVIS_Memory_${safeCategory}.txt"
-                val query = java.net.URLEncoder.encode("name='$fileName' and trashed=false", "UTF-8")
+                val query = URLEncoder.encode("name='$fileName' and trashed=false", "UTF-8")
                 val listUrl = "$baseUrl?q=$query&orderBy=createdTime%20desc&pageSize=1&fields=files(id,name)"
                 val listConnection = (URL(listUrl).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
@@ -121,9 +131,7 @@ class DriveMemoryManager(
                 reasons.optJSONObject(0)?.optString("reason").orEmpty()
             } else ""
             listOf(message, reason.takeIf { it.isNotBlank() }?.let { "reason=$it" })
-                .filterNotNull()
-                .filter { it.isNotBlank() }
-                .joinToString(" | ")
+                .filterNotNull().filter { it.isNotBlank() }.joinToString(" | ")
                 .ifBlank { raw.take(500) }
         } catch (_: Exception) {
             raw.take(500)
