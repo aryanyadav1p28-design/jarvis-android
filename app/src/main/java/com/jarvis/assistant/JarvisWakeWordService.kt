@@ -77,8 +77,18 @@ class JarvisWakeWordService : Service() {
                 override fun onEndOfSpeech() { listening = false }
                 override fun onError(error: Int) {
                     listening = false
-                    updateNotification("Speech recognition retrying (error $error)")
-                    scheduleRetry()
+                    // Error 11 means the recognition service disconnected. Release this
+                    // recognizer instance before retrying so Android can reconnect cleanly.
+                    updateNotification(
+                        if (error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED)
+                            "Speech service disconnected (error 11) — reconnecting"
+                        else "Speech recognition retrying (error $error)"
+                    )
+                    try { recognizer?.cancel() } catch (_: Exception) {}
+                    try { recognizer?.destroy() } catch (_: Exception) {}
+                    recognizer = null
+                    handler.removeCallbacksAndMessages(null)
+                    if (!triggered) handler.postDelayed({ startListening() }, 3000)
                 }
                 override fun onResults(results: Bundle?) {
                     listening = false
@@ -155,7 +165,8 @@ class JarvisWakeWordService : Service() {
     }
 
     private fun scheduleRetry() {
-        if (!triggered) handler.postDelayed({ startListening() }, 900)
+        // Give Android's speech service time to finish the previous session.
+        if (!triggered) handler.postDelayed({ startListening() }, 1800)
     }
 
     private fun deliverCommand(command: String) {
