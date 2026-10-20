@@ -10,6 +10,14 @@ import android.view.accessibility.AccessibilityNodeInfo
  */
 class JarvisScreenReaderService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // Android Accessibility may remain enabled in Settings, but JARVIS only
+        // captures screen text while the in-app combined ON toggle is active.
+        val active = getSharedPreferences("jarvis_control", MODE_PRIVATE)
+            .getBoolean("screen_reading_active", false)
+        if (!active) {
+            latestScreenText = null
+            return
+        }
         if (event == null) return
         val root = rootInActiveWindow ?: return
         val collected = StringBuilder()
@@ -37,6 +45,11 @@ class JarvisScreenReaderService : AccessibilityService() {
         @Volatile
         var latestScreenText: String? = null
             private set
+
+        fun clearLatestScreenText() {
+            latestScreenText = null
+        }
+
         private const val MAX_SCREEN_CHARS = 12000
     }
 }
