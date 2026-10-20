@@ -230,12 +230,23 @@ class MainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == requestDriveAuthorization) {
             if (resultCode == RESULT_OK) {
-                val result = Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(data)
-                driveAccessToken = result.accessToken
-                status.text = if (driveAccessToken.isNullOrBlank()) "DRIVE TOKEN NOT RECEIVED" else "GOOGLE DRIVE CONNECTED"
-                if (!driveAccessToken.isNullOrBlank()) speakHindi("Google Drive connect ho gaya.")
+                try {
+                    val result = Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(data)
+                    driveAccessToken = result.accessToken
+                    status.text = if (driveAccessToken.isNullOrBlank()) {
+                        "DRIVE TOKEN NOT RECEIVED — TRY AGAIN; CHECK GOOGLE CLOUD OAUTH CONFIG"
+                    } else {
+                        "GOOGLE DRIVE AUTHORIZED — TEST SAVE/READ TO VERIFY STORAGE"
+                    }
+                    if (!driveAccessToken.isNullOrBlank()) speakHindi("Google Drive authorization ho gaya. Ab save aur read test karein.")
+                } catch (e: Exception) {
+                    driveAccessToken = null
+                    status.text = ("DRIVE RESULT ERROR: " + (e.message ?: e.javaClass.simpleName)).take(220)
+                    speakHindi("Google Drive authorization result padhne mein dikkat hui.")
+                }
             } else {
-                status.text = "DRIVE AUTHORIZATION CANCELLED"
+                driveAccessToken = null
+                status.text = "DRIVE AUTHORIZATION CANCELLED (RESULT CODE $resultCode)"
             }
             return
         }
@@ -260,6 +271,23 @@ class MainActivity : Activity() {
     }
 
     private fun handleCommand(spoken: String) {
+        if (listOf("connect drive", "drive connect", "गूगल ड्राइव जोड़", "ड्राइव कनेक्ट").any { spoken.contains(it) }) {
+            status.text = "GOOGLE DRIVE AUTHORIZATION OPENING"
+            authorizeDrive()
+            return
+        }
+        if (listOf("read screen", "screen read", "पढ़ो स्क्रीन", "स्क्रीन पढ़ो", "स्क्रीन क्या है").any { spoken.contains(it) }) {
+            val screenText = JarvisScreenReaderService.latestScreenText
+            if (screenText.isNullOrBlank()) {
+                status.text = "SCREEN TEXT NOT AVAILABLE — ENABLE JARVIS SCREEN READER IN ACCESSIBILITY SETTINGS"
+                speakHindi("स्क्रीन का टेक्स्ट उपलब्ध नहीं है। पहले सेटिंग में जाकर जार्विस स्क्रीन रीडर की अनुमति चालू करें।")
+            } else {
+                val spokenText = screenText.take(3500)
+                status.text = "SCREEN TEXT READ (${spokenText.length} characters)"
+                speakHindi(spokenText)
+            }
+            return
+        }
         val apps = listOf(
             listOf("whatsapp", "व्हाट्सएप", "व्हाट्स ऐप") to ("WhatsApp" to "com.whatsapp"),
             listOf("instagram", "इंस्टाग्राम") to ("Instagram" to "com.instagram.android"),
