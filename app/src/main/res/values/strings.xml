@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">JARVIS Assistant</string>
+    <string name="jarvis_screen_reader_description">JARVIS screen text reader</string>
+</resources>
