@@ -20,9 +20,9 @@ android {
             val stableKeystore = rootProject.file("signing/jarvis-signing.jks")
             if (stableKeystore.exists()) {
                 storeFile = stableKeystore
-                storePassword = System.getenv("JARVIS_KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("JARVIS_KEY_ALIAS")
-                keyPassword = System.getenv("JARVIS_KEY_PASSWORD")
+                storePassword = System.getenv("JARVIS_KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("JARVIS_KEY_ALIAS") ?: ""
+                keyPassword = System.getenv("JARVIS_KEY_PASSWORD") ?: ""
             }
         }
     }
