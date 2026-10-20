@@ -33,11 +33,21 @@ jobs:
 
       - name: Create debug keystore for this build
         run: |
-          mkdir -p "$HOME/.android"
-          keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          # Android Gradle Plugin on this runner resolves the debug key under ANDROID_USER_HOME.
+          ANDROID_CONFIG_DIR="${ANDROID_USER_HOME:-$HOME/.config/android}"
+          mkdir -p "$ANDROID_CONFIG_DIR" "$HOME/.android"
+          keytool -genkeypair -noprompt -keystore "$ANDROID_CONFIG_DIR/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          cp "$ANDROID_CONFIG_DIR/debug.keystore" "$HOME/.android/debug.keystore"
+          echo "ANDROID_USER_HOME=$ANDROID_CONFIG_DIR" >> "$GITHUB_ENV"
+          echo "Generated debug keystore at $ANDROID_CONFIG_DIR/debug.keystore"
 
       - name: Print debug signing SHA-1 for OAuth setup
-        run: gradle signingReport
+        run: |
+          KEYSTORE="${ANDROID_USER_HOME:-$HOME/.config/android}/debug.keystore"
+          echo "=== Debug certificate SHA-1 (copy this value) ==="
+          keytool -list -v -keystore "$KEYSTORE" -storepass android -alias androiddebugkey | grep -E 'SHA1:|SHA-1:'
+          echo "=== Gradle signing report ==="
+          gradle signingReport
 
       - name: Build debug APK
         run: gradle assembleDebug
