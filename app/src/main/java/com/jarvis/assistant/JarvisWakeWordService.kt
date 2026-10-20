@@ -28,6 +28,8 @@ class JarvisWakeWordService : Service() {
     private var listening = false
     private var triggered = false
     private var awaitingCommand = false
+    private var retryScheduled = false
+    private var preferOnDeviceRecognizer = true
 
     override fun onCreate() {
         super.onCreate()
@@ -65,7 +67,13 @@ class JarvisWakeWordService : Service() {
         if (triggered) return
         try {
             recognizer?.destroy()
-            recognizer = SpeechRecognizer.createSpeechRecognizer(applicationContext)
+            recognizer = if (Build.VERSION.SDK_INT >= 31 &&
+                preferOnDeviceRecognizer &&
+                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+            } else {
+                SpeechRecognizer.createSpeechRecognizer(this)
+            }
             recognizer?.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
                     listening = true
@@ -88,7 +96,12 @@ class JarvisWakeWordService : Service() {
                     try { recognizer?.destroy() } catch (_: Exception) {}
                     recognizer = null
                     handler.removeCallbacksAndMessages(null)
-                    if (!triggered) handler.postDelayed({ startListening() }, 3000)
+                    retryScheduled = false
+                    if (error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED && preferOnDeviceRecognizer) {
+                        // If the on-device provider disconnects, switch to Android's default provider.
+                        preferOnDeviceRecognizer = false
+                    }
+                    if (!triggered) scheduleRetry(2500)
                 }
                 override fun onResults(results: Bundle?) {
                     listening = false
@@ -164,9 +177,14 @@ class JarvisWakeWordService : Service() {
         }
     }
 
-    private fun scheduleRetry() {
-        // Give Android's speech service time to finish the previous session.
-        if (!triggered) handler.postDelayed({ startListening() }, 1800)
+    private fun scheduleRetry(delayMs: Long = 1800) {
+        // Only one pending restart; repeated callbacks must not start overlapping sessions.
+        if (triggered || retryScheduled) return
+        retryScheduled = true
+        handler.postDelayed({
+            retryScheduled = false
+            startListening()
+        }, delayMs)
     }
 
     private fun deliverCommand(command: String) {
