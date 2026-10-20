@@ -2,13 +2,14 @@
 
 This branch is preparation work. Do not merge to `main` until the APK builds and is tested.
 
-## Drive memory
-- The app requests only `https://www.googleapis.com/auth/drive.file`.
-- Sign in through the in-app Google Drive Connect button.
+## Drive access and privacy
+- JARVIS requests the broad Google Drive scope `https://www.googleapis.com/auth/drive`, not only `drive.file`.
+- This scope can allow reading, creating, editing, and deleting files across the signed-in user's Drive. Use it only if you are comfortable granting that level of access.
+- Google may require additional consent-screen configuration, verification, or testing-user setup before authorization succeeds. The app cannot bypass Google's consent.
+- Sign in through the in-app Google Drive Connect button. The access token is kept in memory only; it is not written to disk or source control.
 - Memory categories are Personal, Projects, Learned_Knowledge, and Important_Notes.
-- Each save creates a new text file named `JARVIS_Memory_<category>.txt` in the signed-in user's Drive. Read opens the newest matching file.
-- The access token is kept in memory only; it is not written to disk or source control.
-- Google Auth Platform must have the scope and the user's Google account listed as a test user while the consent screen is in Testing.
+- Current memory actions save category text files and read the latest JARVIS category file. A full Drive file browser/search/delete UI is not implemented yet; broad scope alone does not create those features.
+- Do not delete user files automatically. Any future delete workflow must show the selected file and ask for confirmation first.
 - The Android OAuth client must use package `com.jarvis.assistant` and the SHA-1 for the certificate that actually signs the installed APK.
 
 ## Stable signing key (one-time owner setup)
@@ -26,5 +27,6 @@ If the secrets are not configured, the workflow intentionally falls back to a te
 - Run the Android build workflow manually on `jarvis-ai-prep`.
 - Confirm Gradle succeeds and inspect the generated APK.
 - Install on a test device; confirm existing Hindi voice and app-launch commands still work.
-- Sign in to Drive, save a note to each category, then read it back.
+- Sign in to Drive and confirm Google consent works with the broad Drive scope.
+- Save a note to each category, then read it back.
 - Confirm no secrets or tokens appear in repository files or build logs.
