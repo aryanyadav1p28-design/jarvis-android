@@ -52,7 +52,7 @@ class DriveMemoryManager(
                     return@execute
                 }
 
-                val upload = (URL("$baseUrl/$id?uploadType=media").openConnection() as HttpURLConnection).apply {
+                val upload = (URL("https://www.googleapis.com/upload/drive/v3/files/$id?uploadType=media").openConnection() as HttpURLConnection).apply {
                     requestMethod = "PATCH"
                     setRequestProperty("Authorization", "Bearer $accessToken")
                     setRequestProperty("Content-Type", "text/plain; charset=UTF-8")
