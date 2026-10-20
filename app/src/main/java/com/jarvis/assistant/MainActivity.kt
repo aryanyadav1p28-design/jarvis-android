@@ -39,6 +39,8 @@ class MainActivity : Activity() {
     private val requestAudio = 1001
     private val requestSpeech = 1002
     private val requestDriveAuthorization = 1003
+    private var pendingWakeStart = false
+    private val jarvisControlPrefs by lazy { getSharedPreferences("jarvis_control", MODE_PRIVATE) }
     private val requestPdfImport = 1004
     private val driveScope = "https://www.googleapis.com/auth/drive"
 
@@ -61,6 +63,10 @@ class MainActivity : Activity() {
         }
         buildScreen()
         handleWakeIntent(intent)
+        // Resume the user's saved ON preference when the app is opened again.
+        if (jarvisControlPrefs.getBoolean("screen_reading_active", false)) {
+            window.decorView.post { startWakeWordListener() }
+        }
     }
 
     private fun speakHindi(message: String) {
@@ -97,15 +103,17 @@ class MainActivity : Activity() {
             setOnClickListener { requestVoiceCommand() }
         }
         val wakeStart = Button(this).apply {
-            text = "🎧  Hello JARVIS — Background Listening ON"
+            text = "👁️🎧  Screen Reading + Listening ON"
             setOnClickListener { startWakeWordListener() }
         }
         val wakeStop = Button(this).apply {
-            text = "⏹  Wake Word Listening OFF"
+            text = "⏹  Screen Reading + Listening OFF"
             setOnClickListener {
+                jarvisControlPrefs.edit().putBoolean("screen_reading_active", false).apply()
+                JarvisScreenReaderService.clearLatestScreenText()
                 stopService(Intent(this@MainActivity, JarvisWakeWordService::class.java))
-                status.text = "WAKE WORD LISTENING OFF"
-                speakHindi("Wake word listening band kar diya.")
+                status.text = "SCREEN READING + WAKE WORD LISTENING OFF"
+                speakHindi("Screen reading aur wake word listening dono band kar diye. Google Drive connected rahega.")
             }
         }
         val driveConnect = Button(this).apply {
@@ -187,8 +195,9 @@ class MainActivity : Activity() {
 
     private fun startWakeWordListener() {
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            pendingWakeStart = true
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), requestAudio)
-            status.text = "Microphone permission allow karke phir wake-word ON dabao."
+            status.text = "Microphone permission allow karo; phir screen reading + listening ON hoga."
             return
         }
         if (!SpeechRecognizer.isRecognitionAvailable(this)) {
@@ -196,10 +205,11 @@ class MainActivity : Activity() {
             return
         }
         try {
+            jarvisControlPrefs.edit().putBoolean("screen_reading_active", true).apply()
             val intent = Intent(this, JarvisWakeWordService::class.java)
             if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
-            status.text = "WAKE WORD ON — bolo: Hello JARVIS"
-            speakHindi("Hello JARVIS wake word listening chalu ho gaya. Notification dikhai degi.")
+            status.text = "SCREEN READING + WAKE WORD ON — bolo: Hello JARVIS"
+            speakHindi("Screen reading aur Hello JARVIS listening dono chalu ho gaye. Band karne ke liye OFF dabayein.")
         } catch (e: Exception) {
             status.text = "WAKE WORD START FAILED: ${e.message ?: "permission required"}".take(180)
         }
@@ -402,10 +412,17 @@ class MainActivity : Activity() {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == requestAudio && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
-            requestVoiceCommand()
+            if (pendingWakeStart) {
+                pendingWakeStart = false
+                startWakeWordListener()
+            } else {
+                requestVoiceCommand()
+            }
         } else if (requestCode == requestAudio) {
+            pendingWakeStart = false
+            jarvisControlPrefs.edit().putBoolean("screen_reading_active", false).apply()
             status.text = "MICROPHONE PERMISSION REQUIRED"
-            speakHindi("मुझे काम करने के लिए माइक्रोफोन की अनुमति चाहिए।")
+            speakHindi("माइक्रोफोन की अनुमति चाहिए।")
         }
     }
 
