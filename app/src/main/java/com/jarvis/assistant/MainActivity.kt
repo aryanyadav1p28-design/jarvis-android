@@ -13,6 +13,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
+import android.widget.ScrollView
 import android.view.Gravity
 import android.graphics.Color
 import android.view.ViewGroup
@@ -88,6 +89,10 @@ class MainActivity : Activity() {
             text = "J.A.R.V.I.S."; textSize = 22f; letterSpacing = 0.22f
             gravity = Gravity.CENTER; setTextColor(Color.WHITE)
         }
+        // Animated JARVIS face/avatar, matching the previously requested robot interface.
+        val jarvisAvatar = JarvisRobotView(this).apply {
+            contentDescription = "Animated JARVIS robot face"
+        }
         status = TextView(this).apply {
             text = "SYSTEM READY"; textSize = 14f; gravity = Gravity.CENTER
             setTextColor(Color.rgb(160, 205, 224))
@@ -112,8 +117,8 @@ class MainActivity : Activity() {
                 jarvisControlPrefs.edit().putBoolean("screen_reading_active", false).apply()
                 JarvisScreenReaderService.clearLatestScreenText()
                 stopService(Intent(this@MainActivity, JarvisWakeWordService::class.java))
-                status.text = "SCREEN READING + WAKE WORD LISTENING OFF"
-                speakHindi("Screen reading aur wake word listening dono band kar diye. Google Drive connected rahega.")
+                status.text = "JARVIS FULL OFF — SCREEN READING + MICROPHONE LISTENING STOPPED"
+                speakHindi("Jarvis poori tarah band. Google Drive memory safe rahegi. Dobara chalu karne ke liye app ka ON button dabayein.")
             }
         }
         val driveConnect = Button(this).apply {
@@ -187,10 +192,14 @@ class MainActivity : Activity() {
                 else driveMemory?.readLatest(token, selectedCategory())
             }
         }
-        listOf(title, name, status, command, mic, wakeStart, wakeStop, driveConnect, memoryTitle, categorySpinner, memoryInput, teachButton, importPdf, searchLessons, saveMemory, readMemory).forEach {
+        root.addView(title, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        root.addView(name, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        root.addView(jarvisAvatar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (190 * resources.displayMetrics.density).toInt()))
+        listOf(status, command, mic, wakeStart, wakeStop, driveConnect, memoryTitle, categorySpinner, memoryInput, teachButton, importPdf, searchLessons, saveMemory, readMemory).forEach {
             root.addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
-        setContentView(root)
+        val scroll = ScrollView(this).apply { isFillViewport = true; addView(root) }
+        setContentView(scroll)
     }
 
     private fun startWakeWordListener() {
@@ -329,6 +338,19 @@ class MainActivity : Activity() {
     }
 
     private fun handleCommand(spoken: String) {
+        if (listOf("turn on", "jarvis on", "screen reading on", "start screen reading", "जार्विस चालू", "स्क्रीन रीडिंग चालू").any { spoken.contains(it) }) {
+            jarvisControlPrefs.edit().putBoolean("screen_reading_active", true).apply()
+            status.text = "SCREEN READING ON — WAKE WORD LISTENER ACTIVE"
+            speakHindi("स्क्रीन रीडिंग चालू कर दी। Hello JARVIS सुनना जारी है।")
+            return
+        }
+        if (listOf("turn off", "jarvis off", "screen reading off", "stop screen reading", "जार्विस बंद", "स्क्रीन रीडिंग बंद").any { spoken.contains(it) }) {
+            jarvisControlPrefs.edit().putBoolean("screen_reading_active", false).apply()
+            JarvisScreenReaderService.clearLatestScreenText()
+            status.text = "SCREEN READING OFF — VOICE STANDBY ACTIVE; SAY JARVIS ON"
+            speakHindi("स्क्रीन रीडिंग बंद कर दी। आवाज से दोबारा चालू करने के लिए जार्विस ऑन बोलें।")
+            return
+        }
         // Voice-first Drive memory actions.
         if (listOf("read memory", "memory read", "पर्सनल मेमोरी पढ़ो", "मेमोरी पढ़ो", "ड्राइव मेमोरी पढ़ो").any { spoken.contains(it) }) {
             val token = driveAccessToken
