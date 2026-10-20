@@ -271,6 +271,48 @@ class MainActivity : Activity() {
     }
 
     private fun handleCommand(spoken: String) {
+        // Voice-first Drive memory actions.
+        if (listOf("read memory", "memory read", "पर्सनल मेमोरी पढ़ो", "मेमोरी पढ़ो", "ड्राइव मेमोरी पढ़ो").any { spoken.contains(it) }) {
+            val token = driveAccessToken
+            if (token.isNullOrBlank()) {
+                status.text = "पहले Google Drive Connect करें।"
+                speakHindi("पहले गूगल ड्राइव कनेक्ट करें।")
+            } else {
+                status.text = "DRIVE MEMORY पढ़ रहा हूँ..."
+                driveMemory?.readLatest(token, selectedCategory())
+            }
+            return
+        }
+        if (listOf("save memory", "memory save", "मेमोरी सेव करो", "मेमोरी सेव कर दो", "ड्राइव में सेव करो").any { spoken.contains(it) }) {
+            val token = driveAccessToken
+            if (token.isNullOrBlank()) {
+                status.text = "पहले Google Drive Connect करें।"
+                speakHindi("पहले गूगल ड्राइव कनेक्ट करें।")
+            } else if (memoryInput.text.toString().isBlank()) {
+                status.text = "पहले memory box में text लिखें।"
+                speakHindi("सेव करने से पहले मेमोरी बॉक्स में टेक्स्ट लिखें।")
+            } else {
+                status.text = "DRIVE MEMORY सेव कर रहा हूँ..."
+                driveMemory?.save(token, selectedCategory(), memoryInput.text.toString())
+            }
+            return
+        }
+        // Search the spoken query on the web without requiring keyboard input.
+        val searchPrefixes = listOf("search for ", "search ", "google search ", "google par search ", "गूगल पर खोजो ", "गूगल पर सर्च करो ", "सर्च करो ", "खोजो ")
+        val searchPrefix = searchPrefixes.firstOrNull { spoken.startsWith(it) }
+        if (searchPrefix != null) {
+            val query = spoken.removePrefix(searchPrefix).trim()
+            if (query.isBlank()) {
+                status.text = "SEARCH QUERY EMPTY"
+                speakHindi("क्या सर्च करना है, कृपया बताइए।")
+            } else {
+                val searchUrl = "https://www.google.com/search?q=" + android.net.Uri.encode(query)
+                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(searchUrl)))
+                status.text = "GOOGLE SEARCH: ${query}"
+                speakHindi("गूगल पर खोज रहा हूँ: ${query}")
+            }
+            return
+        }
         if (listOf("connect drive", "drive connect", "गूगल ड्राइव जोड़", "ड्राइव कनेक्ट").any { spoken.contains(it) }) {
             status.text = "GOOGLE DRIVE AUTHORIZATION OPENING"
             authorizeDrive()
