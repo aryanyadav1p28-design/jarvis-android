@@ -159,7 +159,32 @@ class JarvisWakeWordService : Service() {
     }
 
     private fun deliverCommand(command: String) {
-        updateNotification("Command heard: ${command.take(80)} — tap notification to run")
+        val normalized = command.lowercase()
+            .replace(Regex("[^a-z0-9\\u0900-\\u097f ]"), " ")
+            .replace(Regex("\\s+"), " ").trim()
+        val appTargets = listOf(
+            listOf("youtube", "यूट्यूब") to "com.google.android.youtube",
+            listOf("whatsapp", "व्हाट्सएप", "व्हाट्स ऐप") to "com.whatsapp",
+            listOf("instagram", "इंस्टाग्राम") to "com.instagram.android"
+        )
+        val target = appTargets.firstOrNull { entry -> entry.first.any { normalized.contains(it) } }?.second
+        if (target != null) {
+            val launch = packageManager.getLaunchIntentForPackage(target)
+            if (launch != null) {
+                try {
+                    launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(launch)
+                    updateNotification("Command executed: ${command.take(65)}")
+                    scheduleRetry()
+                    return
+                } catch (_: Exception) {
+                    // Android may block opening an Activity from background; offer a notification action below.
+                }
+            }
+        }
+
+        // Non-app commands are handed to MainActivity. Android may require the user
+        // to tap the notification when launching an Activity from the background.
         val open = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra(EXTRA_COMMAND, command)
