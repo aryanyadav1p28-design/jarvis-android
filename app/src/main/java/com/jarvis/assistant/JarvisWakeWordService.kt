@@ -54,7 +54,7 @@ class JarvisWakeWordService : Service() {
     }
 
     private fun startListening() {
-        if (triggered || isDestroyed) return
+        if (triggered) return
         try {
             recognizer?.destroy()
             recognizer = SpeechRecognizer.createSpeechRecognizer(applicationContext)
