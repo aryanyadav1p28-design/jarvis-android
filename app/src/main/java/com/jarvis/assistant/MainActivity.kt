@@ -218,7 +218,8 @@ class MainActivity : Activity() {
             val intent = Intent(this, JarvisWakeWordService::class.java)
             if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
             status.text = "SCREEN READING + WAKE WORD ON — bolo: Hello JARVIS"
-            speakHindi("Screen reading aur Hello JARVIS listening dono chalu ho gaye. Band karne ke liye OFF dabayein.")
+            // Do not speak an acknowledgement while the microphone listener starts;
+            // TTS echo can be mistaken for a spoken command by the recognizer.
         } catch (e: Exception) {
             status.text = "WAKE WORD START FAILED: ${e.message ?: "permission required"}".take(180)
         }
