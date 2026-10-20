@@ -39,12 +39,13 @@ class DriveMemoryManager(
                     append("--").append(boundary).append("\r\n")
                     append("Content-Type: text/plain; charset=UTF-8\r\n\r\n")
                     append(note).append("\r\n")
-                    append("--").append(boundary).append("--")
+                    append("--").append(boundary).append("--\r\n")
                 }
                 val connection = (URL("$baseUrl?uploadType=multipart&fields=id,name").openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
                     setRequestProperty("Authorization", "Bearer $accessToken")
                     setRequestProperty("Content-Type", "multipart/related; boundary=$boundary")
+                    setRequestProperty("Accept", "application/json")
                     doOutput = true
                     connectTimeout = 15000
                     readTimeout = 15000
@@ -53,8 +54,12 @@ class DriveMemoryManager(
                 val code = connection.responseCode
                 val response = readResponse(connection, code)
                 connection.disconnect()
-                if (code in 200..299) onResult("Drive में $category memory सेव हो गई।")
-                else onResult("Drive save error ($code): ${response.take(180)}")
+                if (code in 200..299) {
+                    val fileId = runCatching { JSONObject(response).optString("id") }.getOrDefault("")
+                    onResult("Drive में $category memory सेव हो गई।" + if (fileId.isNotBlank()) "\nFile ID: $fileId" else "")
+                } else {
+                    onResult("Drive save error ($code): ${friendlyError(response)}")
+                }
             } catch (e: Exception) {
                 onResult("Drive save नहीं हुआ: ${e.message ?: "network error"}")
             }
@@ -71,6 +76,7 @@ class DriveMemoryManager(
                 val listConnection = (URL(listUrl).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     setRequestProperty("Authorization", "Bearer $accessToken")
+                    setRequestProperty("Accept", "application/json")
                     connectTimeout = 15000
                     readTimeout = 15000
                 }
@@ -78,7 +84,7 @@ class DriveMemoryManager(
                 val listText = readResponse(listConnection, listCode)
                 listConnection.disconnect()
                 if (listCode !in 200..299) {
-                    onResult("Drive read error ($listCode): ${listText.take(180)}")
+                    onResult("Drive read error ($listCode): ${friendlyError(listText)}")
                     return@execute
                 }
                 val files = JSONObject(listText).optJSONArray("files") ?: JSONArray()
@@ -97,10 +103,30 @@ class DriveMemoryManager(
                 val content = readResponse(contentConnection, contentCode)
                 contentConnection.disconnect()
                 if (contentCode in 200..299) onResult("$category memory:\n$content")
-                else onResult("Memory download error ($contentCode): ${content.take(180)}")
+                else onResult("Memory download error ($contentCode): ${friendlyError(content)}")
             } catch (e: Exception) {
                 onResult("Drive से पढ़ना असफल: ${e.message ?: "network error"}")
             }
+        }
+    }
+
+    private fun friendlyError(raw: String): String {
+        if (raw.isBlank()) return "Google Drive ने खाली error response दिया।"
+        return try {
+            val root = JSONObject(raw)
+            val error = root.optJSONObject("error")
+            val message = error?.optString("message").orEmpty()
+            val reasons = error?.optJSONArray("errors")
+            val reason = if (reasons != null && reasons.length() > 0) {
+                reasons.optJSONObject(0)?.optString("reason").orEmpty()
+            } else ""
+            listOf(message, reason.takeIf { it.isNotBlank() }?.let { "reason=$it" })
+                .filterNotNull()
+                .filter { it.isNotBlank() }
+                .joinToString(" | ")
+                .ifBlank { raw.take(500) }
+        } catch (_: Exception) {
+            raw.take(500)
         }
     }
 
