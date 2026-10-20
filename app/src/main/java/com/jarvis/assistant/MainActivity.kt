@@ -34,15 +34,18 @@ class MainActivity : Activity() {
     private var voiceReady = false
     private var driveAccessToken: String? = null
     private var driveMemory: DriveMemoryManager? = null
+    private lateinit var learningLibrary: LearningLibrary
     private val requestAudio = 1001
     private val requestSpeech = 1002
     private val requestDriveAuthorization = 1003
+    private val requestPdfImport = 1004
     private val driveScope = "https://www.googleapis.com/auth/drive.file"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.rgb(3, 10, 22)
         window.navigationBarColor = Color.rgb(3, 10, 22)
+        learningLibrary = LearningLibrary(this)
         driveMemory = DriveMemoryManager { message ->
             runOnUiThread {
                 status.text = message.take(220)
@@ -115,6 +118,37 @@ class MainActivity : Activity() {
             setHintTextColor(Color.LTGRAY)
             setPadding(12, 10, 12, 10)
         }
+
+        val teachButton = Button(this).apply {
+            text = "Is text se JARVIS ko sikhao"
+            setOnClickListener {
+                try {
+                    val lesson = learningLibrary.teach(selectedCategory(), "User lesson", memoryInput.text.toString())
+                    status.text = "सीख सेव हुई: " + lesson.title + " (local)"
+                    speakHindi("सीखी हुई जानकारी सेव हो गई।")
+                } catch (e: Exception) {
+                    status.text = e.message ?: "Lesson save nahi hui"
+                }
+            }
+        }
+        val importPdf = Button(this).apply {
+            text = "PDF se Sikhao"
+            setOnClickListener {
+                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "application/pdf"
+                }
+                startActivityForResult(intent, requestPdfImport)
+            }
+        }
+        val searchLessons = Button(this).apply {
+            text = "Knowledge Library Search"
+            setOnClickListener {
+                val found = learningLibrary.search(memoryInput.text.toString(), selectedCategory())
+                status.text = if (found.isEmpty()) "Is category mein matching lesson nahi mila." else
+                    "Found " + found.size + ": " + found.joinToString(" | ") { it.title + " — " + it.content.take(90) }
+            }
+        }
         val saveMemory = Button(this).apply {
             text = "Selected category mein Save"
             setOnClickListener {
@@ -131,7 +165,7 @@ class MainActivity : Activity() {
                 else driveMemory?.readLatest(token, selectedCategory())
             }
         }
-        listOf(title, name, status, command, mic, driveConnect, memoryTitle, categorySpinner, memoryInput, saveMemory, readMemory).forEach {
+        listOf(title, name, status, command, mic, driveConnect, memoryTitle, categorySpinner, memoryInput, teachButton, importPdf, searchLessons, saveMemory, readMemory).forEach {
             root.addView(it, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
         setContentView(root)
@@ -201,6 +235,20 @@ class MainActivity : Activity() {
                 if (!driveAccessToken.isNullOrBlank()) speakHindi("Google Drive connect ho gaya.")
             } else {
                 status.text = "DRIVE AUTHORIZATION CANCELLED"
+            }
+            return
+        }
+        if (requestCode == requestPdfImport) {
+            if (resultCode == RESULT_OK && data?.data != null) {
+                try {
+                    val lesson = learningLibrary.importPdf(data.data!!)
+                    status.text = "PDF सीखकर local library में सेव: " + lesson.title
+                    speakHindi("PDF se seekhi hui jaankari save ho gayi.")
+                } catch (e: Exception) {
+                    status.text = ("PDF import failed: " + (e.message ?: "unknown error")).take(220)
+                }
+            } else {
+                status.text = "PDF import cancelled"
             }
             return
         }
