@@ -31,6 +31,11 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Create debug keystore for this build
+        run: |
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+
       - name: Print debug signing SHA-1 for OAuth setup
         run: gradle signingReport
 
