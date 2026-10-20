@@ -18,7 +18,10 @@ Prioritize a structured, beginner-friendly curriculum covering both:
 1. **Web penetration testing** — HTTP/HTTPS, browser/devtools, authentication/session security, common web vulnerabilities, safe testing, remediation, and reporting.
 2. **Networking, Linux, and network security** — TCP/IP, DNS, ports, routing, Linux command line, permissions, logs, firewalls, and defensive network analysis.
 
-Practice must be limited to systems the user owns or has explicit authorization to test, plus legal training labs/CTFs. Ask before installing tools, changing system settings, or running scans. No unattended arbitrary shell commands, unauthorized access, credential theft, or public-internet scanning by default. Show the scope and intended action before any active test.
+- Add a **user-configurable testing profile/scope** so the user can choose and update their learning environment and authorized target list later, without editing code.
+- Let the user configure ordinary preferences such as lab selection, scan intensity, tool choices, and confirmation prompts. Show the current scope before an active test and ask before installing tools, changing system settings, or running potentially disruptive scans.
+- A configuration option must not turn the assistant into an unrestricted agent for unauthorized intrusion, credential theft, destructive activity, or indiscriminate public-target scanning. Keep those safety boundaries even if the user changes their profile.
+- Prefer legal labs/CTFs and systems the user owns or has explicit permission to test. Support broad learning, defensive analysis, code review, and safe testing guidance.
 
 ## General safety and implementation constraints
 
