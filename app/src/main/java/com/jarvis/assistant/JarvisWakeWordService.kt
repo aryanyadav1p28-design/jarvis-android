@@ -35,6 +35,9 @@ class JarvisWakeWordService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            getSharedPreferences("jarvis_control", MODE_PRIVATE)
+                .edit().putBoolean("screen_reading_active", false).apply()
+            JarvisScreenReaderService.clearLatestScreenText()
             handler.removeCallbacksAndMessages(null)
             recognizer?.cancel()
             stopForeground(true)
