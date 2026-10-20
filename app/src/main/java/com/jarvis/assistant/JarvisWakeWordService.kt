@@ -27,6 +27,7 @@ class JarvisWakeWordService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var listening = false
     private var triggered = false
+    private var awaitingCommand = false
 
     override fun onCreate() {
         super.onCreate()
@@ -55,6 +56,7 @@ class JarvisWakeWordService : Service() {
             return START_NOT_STICKY
         }
         triggered = false
+        awaitingCommand = false
         startListening()
         return START_NOT_STICKY
     }
@@ -65,13 +67,17 @@ class JarvisWakeWordService : Service() {
             recognizer?.destroy()
             recognizer = SpeechRecognizer.createSpeechRecognizer(applicationContext)
             recognizer?.setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) { listening = true }
+                override fun onReadyForSpeech(params: Bundle?) {
+                    listening = true
+                    updateNotification(if (awaitingCommand) "Wake word heard — listening for your command" else "Listening for Hello JARVIS")
+                }
                 override fun onBeginningOfSpeech() {}
                 override fun onRmsChanged(rmsdB: Float) {}
                 override fun onBufferReceived(buffer: ByteArray?) {}
                 override fun onEndOfSpeech() { listening = false }
                 override fun onError(error: Int) {
                     listening = false
+                    updateNotification("Speech recognition retrying (error $error)")
                     scheduleRetry()
                 }
                 override fun onResults(results: Bundle?) {
@@ -86,16 +92,18 @@ class JarvisWakeWordService : Service() {
                             normalized.contains("jarvis")
                     }
                     val normalizedPhrases = phrases.map { it.lowercase().replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim() }
-                    val voiceOff = wakePhrase && normalizedPhrases.any {
+                    val voiceOff = normalizedPhrases.any {
                         it.contains("turn off") || it.contains("switch off") || it.contains("jarvis off") ||
                             it.endsWith(" off") || it.contains("stop screen reading")
                     } || phrases.any { it.lowercase().contains("जार्विस बंद") || it.lowercase().contains("स्क्रीन रीडिंग बंद") }
-                    val voiceOn = wakePhrase && normalizedPhrases.any {
+                    val voiceOn = normalizedPhrases.any {
                         it.contains("turn on") || it.contains("switch on") || it.contains("jarvis on") ||
                             it.endsWith(" on") || it.contains("start screen reading")
                     } || phrases.any { it.lowercase().contains("जार्विस चालू") || it.lowercase().contains("स्क्रीन रीडिंग चालू") }
+                    val recognized = phrases.firstOrNull().orEmpty()
                     when {
                         voiceOff -> {
+                            awaitingCommand = false
                             getSharedPreferences("jarvis_control", MODE_PRIVATE).edit()
                                 .putBoolean("screen_reading_active", false).apply()
                             JarvisScreenReaderService.clearLatestScreenText()
@@ -103,12 +111,27 @@ class JarvisWakeWordService : Service() {
                             scheduleRetry()
                         }
                         voiceOn -> {
+                            awaitingCommand = false
                             getSharedPreferences("jarvis_control", MODE_PRIVATE).edit()
                                 .putBoolean("screen_reading_active", true).apply()
-                            updateNotification("JARVIS screen reading ON — say Hello JARVIS turn off")
+                            updateNotification("JARVIS screen reading ON — voice standby active")
                             scheduleRetry()
                         }
-                        wakePhrase -> wakeDetected()
+                        wakePhrase && normalizedPhrases.any { it.contains("open youtube") || it.contains("open whatsapp") || it.contains("open instagram") || it.contains("read screen") || it.contains("search ") } -> {
+                            awaitingCommand = false
+                            deliverCommand(recognized)
+                        }
+                        wakePhrase -> {
+                            // Speech recognizers often split "Hello JARVIS" and the command
+                            // into separate results. Keep listening for the next utterance.
+                            awaitingCommand = true
+                            updateNotification("Hello JARVIS heard — now say your command")
+                            scheduleRetry()
+                        }
+                        awaitingCommand -> {
+                            awaitingCommand = false
+                            deliverCommand(recognized)
+                        }
                         else -> scheduleRetry()
                     }
                 }
@@ -133,6 +156,20 @@ class JarvisWakeWordService : Service() {
 
     private fun scheduleRetry() {
         if (!triggered) handler.postDelayed({ startListening() }, 900)
+    }
+
+    private fun deliverCommand(command: String) {
+        updateNotification("Command heard: ${command.take(80)} — tap notification to run")
+        val open = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(EXTRA_COMMAND, command)
+        }
+        val pending = PendingIntent.getActivity(
+            this, 203, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(NOTIFICATION_ID, notification("Command heard — tap to run: ${command.take(70)}", pending))
+        scheduleRetry()
     }
 
     private fun wakeDetected() {
@@ -196,6 +233,7 @@ class JarvisWakeWordService : Service() {
     companion object {
         const val ACTION_STOP = "com.jarvis.assistant.STOP_WAKE_LISTENER"
         const val EXTRA_WAKE_DETECTED = "com.jarvis.assistant.WAKE_DETECTED"
+        const val EXTRA_COMMAND = "com.jarvis.assistant.COMMAND"
         private const val CHANNEL_ID = "jarvis_wake_word"
         private const val NOTIFICATION_ID = 7310
     }
