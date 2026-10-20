@@ -77,20 +77,44 @@ class JarvisWakeWordService : Service() {
                 override fun onResults(results: Bundle?) {
                     listening = false
                     val phrases = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
-                    val matched = phrases.any {
-                        val normalized = it.lowercase().replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim()
-                        normalized.contains("hello jarvis") ||
-                            normalized.contains("hey jarvis") ||
-                            normalized.contains("हेलो जार्विस") ||
-                            normalized.contains("हैलो जार्विस") ||
-                            normalized.contains("हे जार्विस")
+                    val wakePhrase = phrases.any { raw ->
+                        val normalized = raw.lowercase().replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim()
+                        normalized.contains("hello jarvis") || normalized.contains("hey jarvis") ||
+                            raw.lowercase().contains("हेलो जार्विस") ||
+                            raw.lowercase().contains("हैलो जार्विस") ||
+                            raw.lowercase().contains("हे जार्विस") ||
+                            normalized.contains("jarvis")
                     }
-                    if (matched) wakeDetected() else scheduleRetry()
+                    val normalizedPhrases = phrases.map { it.lowercase().replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim() }
+                    val voiceOff = wakePhrase && normalizedPhrases.any {
+                        it.contains("turn off") || it.contains("switch off") || it.contains("jarvis off") ||
+                            it.endsWith(" off") || it.contains("stop screen reading")
+                    } || phrases.any { it.lowercase().contains("जार्विस बंद") || it.lowercase().contains("स्क्रीन रीडिंग बंद") }
+                    val voiceOn = wakePhrase && normalizedPhrases.any {
+                        it.contains("turn on") || it.contains("switch on") || it.contains("jarvis on") ||
+                            it.endsWith(" on") || it.contains("start screen reading")
+                    } || phrases.any { it.lowercase().contains("जार्विस चालू") || it.lowercase().contains("स्क्रीन रीडिंग चालू") }
+                    when {
+                        voiceOff -> {
+                            getSharedPreferences("jarvis_control", MODE_PRIVATE).edit()
+                                .putBoolean("screen_reading_active", false).apply()
+                            JarvisScreenReaderService.clearLatestScreenText()
+                            updateNotification("Screen reading OFF — voice standby active; say Hello JARVIS turn on")
+                            scheduleRetry()
+                        }
+                        voiceOn -> {
+                            getSharedPreferences("jarvis_control", MODE_PRIVATE).edit()
+                                .putBoolean("screen_reading_active", true).apply()
+                            updateNotification("JARVIS screen reading ON — say Hello JARVIS turn off")
+                            scheduleRetry()
+                        }
+                        wakePhrase -> wakeDetected()
+                        else -> scheduleRetry()
+                    }
                 }
-                override fun onPartialResults(partialResults: Bundle?) {
-                    val phrases = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION).orEmpty()
-                    if (phrases.any { it.lowercase().contains("hello jarvis") || it.lowercase().contains("हेलो जार्विस") }) wakeDetected()
-                }
+                // Wait for final results so a partial "Hello JARVIS" does not
+                // interrupt the rest of "Hello JARVIS, turn off/on".
+                override fun onPartialResults(partialResults: Bundle?) {}
                 override fun onEvent(eventType: Int, params: Bundle?) {}
             })
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
