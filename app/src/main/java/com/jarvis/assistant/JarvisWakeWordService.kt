@@ -35,6 +35,9 @@ class JarvisWakeWordService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            handler.removeCallbacksAndMessages(null)
+            recognizer?.cancel()
+            stopForeground(true)
             stopSelf()
             return START_NOT_STICKY
         }
@@ -126,6 +129,17 @@ class JarvisWakeWordService : Service() {
             .setContentText(message)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setOngoing(!triggered)
+
+        // Stop only wake-word/microphone listening; keep Google Drive authorization untouched.
+        val stopIntent = Intent(this, JarvisWakeWordService::class.java).apply {
+            action = ACTION_STOP
+        }
+        val stopPending = PendingIntent.getService(
+            this, 202, stopIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        builder.addAction(android.R.drawable.ic_media_pause, "JARVIS OFF", stopPending)
+
         if (pendingIntent != null) builder.setContentIntent(pendingIntent).setAutoCancel(false)
         return builder.build()
     }
