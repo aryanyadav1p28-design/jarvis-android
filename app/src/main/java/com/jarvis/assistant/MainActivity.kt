@@ -225,6 +225,14 @@ class MainActivity : Activity() {
     }
 
     private fun handleWakeIntent(intent: Intent?) {
+        val recognizedCommand = intent?.getStringExtra(JarvisWakeWordService.EXTRA_COMMAND)
+        if (!recognizedCommand.isNullOrBlank()) {
+            intent.removeExtra(JarvisWakeWordService.EXTRA_COMMAND)
+            command.text = recognizedCommand
+            status.text = "BACKGROUND COMMAND RECEIVED — EXECUTING"
+            window.decorView.post { handleCommand(recognizedCommand.lowercase(Locale.ROOT)) }
+            return
+        }
         if (intent?.getBooleanExtra(JarvisWakeWordService.EXTRA_WAKE_DETECTED, false) == true) {
             intent.removeExtra(JarvisWakeWordService.EXTRA_WAKE_DETECTED)
             status.text = "HELLO JARVIS DETECTED — ab apni command bolo"
