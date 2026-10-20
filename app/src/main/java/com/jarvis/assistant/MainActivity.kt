@@ -230,7 +230,7 @@ class MainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == requestDriveAuthorization) {
             if (resultCode == RESULT_OK) {
-                val result = AuthorizationResult.fromIntent(data)
+                val result = Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(data)
                 driveAccessToken = result.accessToken
                 status.text = if (driveAccessToken.isNullOrBlank()) "DRIVE TOKEN NOT RECEIVED" else "GOOGLE DRIVE CONNECTED"
                 if (!driveAccessToken.isNullOrBlank()) speakHindi("Google Drive connect ho gaya.")
