@@ -40,7 +40,7 @@ class MainActivity : Activity() {
     private val requestSpeech = 1002
     private val requestDriveAuthorization = 1003
     private val requestPdfImport = 1004
-    private val driveScope = "https://www.googleapis.com/auth/drive.file"
+    private val driveScope = "https://www.googleapis.com/auth/drive"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -230,7 +230,7 @@ class MainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == requestDriveAuthorization) {
             if (resultCode == RESULT_OK) {
-                val result = AuthorizationClient.getAuthorizationResultFromIntent(data)
+                val result = AuthorizationResult.fromIntent(data)
                 driveAccessToken = result.accessToken
                 status.text = if (driveAccessToken.isNullOrBlank()) "DRIVE TOKEN NOT RECEIVED" else "GOOGLE DRIVE CONNECTED"
                 if (!driveAccessToken.isNullOrBlank()) speakHindi("Google Drive connect ho gaya.")
