@@ -19,6 +19,7 @@ import android.view.ViewGroup
 import android.content.ActivityNotFoundException
 import android.content.IntentSender
 import android.widget.Toast
+import com.google.android.gms.auth.api.identity.AuthorizationClient
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.AuthorizationResult
 import com.google.android.gms.auth.api.identity.Identity
