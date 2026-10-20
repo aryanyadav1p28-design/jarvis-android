@@ -16,6 +16,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      SIGNING_KEYSTORE_BASE64: ${{ secrets.JARVIS_KEYSTORE_BASE64 }}
+      JARVIS_KEYSTORE_PASSWORD: ${{ secrets.JARVIS_KEYSTORE_PASSWORD }}
+      JARVIS_KEY_ALIAS: ${{ secrets.JARVIS_KEY_ALIAS }}
+      JARVIS_KEY_PASSWORD: ${{ secrets.JARVIS_KEY_PASSWORD }}
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -31,23 +36,29 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Create debug keystore for this build
+      - name: Prepare signing key
         run: |
-          # Android Gradle Plugin on this runner resolves the debug key under ANDROID_USER_HOME.
-          ANDROID_CONFIG_DIR="${ANDROID_USER_HOME:-$HOME/.config/android}"
-          mkdir -p "$ANDROID_CONFIG_DIR" "$HOME/.android"
-          keytool -genkeypair -noprompt -keystore "$ANDROID_CONFIG_DIR/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          cp "$ANDROID_CONFIG_DIR/debug.keystore" "$HOME/.android/debug.keystore"
-          echo "ANDROID_USER_HOME=$ANDROID_CONFIG_DIR" >> "$GITHUB_ENV"
-          echo "Generated debug keystore at $ANDROID_CONFIG_DIR/debug.keystore"
+          mkdir -p signing
+          if [ -n "$SIGNING_KEYSTORE_BASE64" ]; then
+            echo "$SIGNING_KEYSTORE_BASE64" | base64 --decode > signing/jarvis-signing.jks
+            if [ ! -s signing/jarvis-signing.jks ] || [ -z "$JARVIS_KEYSTORE_PASSWORD" ] || [ -z "$JARVIS_KEY_ALIAS" ] || [ -z "$JARVIS_KEY_PASSWORD" ]; then
+              echo "Stable signing secrets are incomplete." >&2
+              exit 1
+            fi
+            echo "Stable signing key loaded from GitHub Actions secrets."
+            keytool -list -v -keystore signing/jarvis-signing.jks -storepass "$JARVIS_KEYSTORE_PASSWORD" -alias "$JARVIS_KEY_ALIAS" | grep -E 'SHA1:|SHA-1:'
+          else
+            echo "WARNING: stable signing secrets are not configured; this build will use a temporary debug key. Its OAuth SHA-1 will change on future runs."
+            ANDROID_CONFIG_DIR="$HOME/.config/android"
+            mkdir -p "$ANDROID_CONFIG_DIR" "$HOME/.android"
+            keytool -genkeypair -noprompt -keystore "$ANDROID_CONFIG_DIR/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+            cp "$ANDROID_CONFIG_DIR/debug.keystore" "$HOME/.android/debug.keystore"
+            echo "ANDROID_USER_HOME=$ANDROID_CONFIG_DIR" >> "$GITHUB_ENV"
+            keytool -list -v -keystore "$ANDROID_CONFIG_DIR/debug.keystore" -storepass android -alias androiddebugkey | grep -E 'SHA1:|SHA-1:'
+          fi
 
-      - name: Print debug signing SHA-1 for OAuth setup
-        run: |
-          KEYSTORE="${ANDROID_USER_HOME:-$HOME/.config/android}/debug.keystore"
-          echo "=== Debug certificate SHA-1 (copy this value) ==="
-          keytool -list -v -keystore "$KEYSTORE" -storepass android -alias androiddebugkey | grep -E 'SHA1:|SHA-1:'
-          echo "=== Gradle signing report ==="
-          gradle signingReport
+      - name: Show Gradle signing report
+        run: gradle signingReport
 
       - name: Build debug APK
         run: gradle assembleDebug
