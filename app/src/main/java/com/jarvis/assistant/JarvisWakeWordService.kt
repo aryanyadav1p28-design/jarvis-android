@@ -30,6 +30,7 @@ class JarvisWakeWordService : Service() {
     private var awaitingCommand = false
     private var retryScheduled = false
     private var preferOnDeviceRecognizer = true
+    private var recognitionLanguage = "en-IN"
 
     override fun onCreate() {
         super.onCreate()
@@ -97,13 +98,14 @@ class JarvisWakeWordService : Service() {
                     recognizer = null
                     handler.removeCallbacksAndMessages(null)
                     retryScheduled = false
-                    if ((error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED ||
-                            error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE) &&
-                        preferOnDeviceRecognizer) {
-                        // Some phones have no usable on-device language model. Fall back to
-                        // Android's default recognizer instead of retrying the same unavailable model.
+                    if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE) {
+                        // Switch away from the unavailable English model and use Android's provider.
+                        recognitionLanguage = "hi-IN"
                         preferOnDeviceRecognizer = false
-                        updateNotification("On-device speech unavailable (error $error) — switching recognizer")
+                        updateNotification("English speech model unavailable — switching to Hindi (India)")
+                    } else if (error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED && preferOnDeviceRecognizer) {
+                        preferOnDeviceRecognizer = false
+                        updateNotification("On-device speech disconnected — switching to Android speech service")
                     }
                     if (!triggered) scheduleRetry(2500)
                 }
@@ -127,7 +129,13 @@ class JarvisWakeWordService : Service() {
                         it.contains("turn on") || it.contains("switch on") || it.contains("jarvis on") ||
                             it.endsWith(" on") || it.contains("start screen reading")
                     } || phrases.any { it.lowercase().contains("जार्विस चालू") || it.lowercase().contains("स्क्रीन रीडिंग चालू") }
-                    val recognized = phrases.firstOrNull().orEmpty()
+                    val recognized = phrases.firstOrNull { raw ->
+                        val p = raw.lowercase()
+                        listOf("youtube", "यूट्यूब", "whatsapp", "व्हाट्सएप", "instagram", "इंस्टाग्राम").any { p.contains(it) }
+                    } ?: phrases.firstOrNull().orEmpty()
+                    val appCommand = normalizedPhrases.any {
+                        listOf("youtube", "whatsapp", "instagram", "यूट्यूब", "व्हाट्सएप", "इंस्टाग्राम").any { word -> it.contains(word) }
+                    }
                     when {
                         voiceOff -> {
                             awaitingCommand = false
@@ -144,7 +152,7 @@ class JarvisWakeWordService : Service() {
                             updateNotification("JARVIS screen reading ON — voice standby active")
                             scheduleRetry()
                         }
-                        wakePhrase && normalizedPhrases.any { it.contains("open youtube") || it.contains("open whatsapp") || it.contains("open instagram") || it.contains("read screen") || it.contains("search ") } -> {
+                        wakePhrase && (appCommand || normalizedPhrases.any { it.contains("read screen") || it.contains("search ") }) -> {
                             awaitingCommand = false
                             deliverCommand(recognized)
                         }
@@ -169,8 +177,8 @@ class JarvisWakeWordService : Service() {
             })
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "en-IN")
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, recognitionLanguage)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, recognitionLanguage)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
                 putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
