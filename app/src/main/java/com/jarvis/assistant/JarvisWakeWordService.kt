@@ -97,9 +97,13 @@ class JarvisWakeWordService : Service() {
                     recognizer = null
                     handler.removeCallbacksAndMessages(null)
                     retryScheduled = false
-                    if (error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED && preferOnDeviceRecognizer) {
-                        // If the on-device provider disconnects, switch to Android's default provider.
+                    if ((error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED ||
+                            error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE) &&
+                        preferOnDeviceRecognizer) {
+                        // Some phones have no usable on-device language model. Fall back to
+                        // Android's default recognizer instead of retrying the same unavailable model.
                         preferOnDeviceRecognizer = false
+                        updateNotification("On-device speech unavailable (error $error) — switching recognizer")
                     }
                     if (!triggered) scheduleRetry(2500)
                 }
