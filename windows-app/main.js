@@ -14,13 +14,13 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false }
   });
   win.loadFile("index.html");
-  // Closing the main window must quit JARVIS so a downloaded update can install.
-  // Previously the window only hid to a nearly invisible tray icon.
+  // Keep JARVIS running in the background when the window is closed.
+  // Use the tray menu's "Quit JARVIS" to fully exit and install downloaded updates.
   win.on("close", (event) => {
     if (!isQuitting) {
       event.preventDefault();
-      isQuitting = true;
-      app.quit();
+      win.hide();
+      sendUpdate("JARVIS background mein chal raha hai. Band karke update install karne ke liye tray menu se Quit JARVIS chuno.");
     }
   });
 }
