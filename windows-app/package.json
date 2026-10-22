@@ -1,0 +1,27 @@
+{
+  "name": "jarvis-windows-desktop",
+  "version": "0.1.0",
+  "description": "JARVIS Windows desktop assistant starter",
+  "main": "main.js",
+  "author": "JARVIS",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable",
+    "dist:installer": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^26.0.0"
+  },
+  "build": {
+    "appId": "com.jarvis.desktop",
+    "productName": "JARVIS Desktop",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "preload.js", "index.html"],
+    "win": {
+      "target": ["portable"],
+      "artifactName": "JARVIS-Desktop-${version}-Windows.${ext}"
+    }
+  }
+}
