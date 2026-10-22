@@ -8,7 +8,28 @@
 <script>
 const chat=document.getElementById('chat'),statusEl=document.getElementById('status'),cmd=document.getElementById('cmd');
 function add(text,who='bot'){const d=document.createElement('div');d.className='msg '+(who==='user'?'user':'');d.textContent=text;chat.appendChild(d);chat.scrollTop=chat.scrollHeight}
-function speak(text){if(!('speechSynthesis'in window))return;window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='hi-IN';window.speechSynthesis.speak(u)}
+let jarvisVoice=null;
+function chooseJarvisVoice(){
+  if(!('speechSynthesis'in window))return;
+  const voices=window.speechSynthesis.getVoices()||[];
+  const hindi=voices.filter(v=>/^hi(-|$)/i.test(v.lang));
+  const indianEnglish=voices.filter(v=>/^en-IN$/i.test(v.lang));
+  const femaleHints=/female|woman|heera|kalpana|swara|aditi|priya|neerja|zira|samantha/i;
+  jarvisVoice=hindi.find(v=>femaleHints.test(v.name))||hindi.find(v=>/google/i.test(v.name))||indianEnglish.find(v=>femaleHints.test(v.name))||indianEnglish[0]||voices.find(v=>femaleHints.test(v.name))||hindi[0]||null;
+}
+if('speechSynthesis'in window){chooseJarvisVoice();window.speechSynthesis.onvoiceschanged=chooseJarvisVoice;}
+function speak(text){
+  if(!('speechSynthesis'in window))return;
+  window.speechSynthesis.cancel();
+  chooseJarvisVoice();
+  const u=new SpeechSynthesisUtterance(String(text||''));
+  u.lang=jarvisVoice?.lang||'hi-IN';
+  if(jarvisVoice)u.voice=jarvisVoice;
+  u.rate=0.95;
+  u.pitch=1.08;
+  u.volume=1;
+  window.speechSynthesis.speak(u);
+}
 async function run(text){text=String(text||'').trim();if(!text)return;add(text,'user');cmd.value='';statusEl.textContent='Command chal raha hai…';const result=await window.jarvis.runCommand(text);add(result.message);statusEl.textContent=result.ok?'Command complete':'Command nahi chala';speak(result.message)}
 document.getElementById('send').onclick=()=>run(cmd.value);cmd.addEventListener('keydown',e=>{if(e.key==='Enter')run(cmd.value)});
 document.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>run(b.dataset.cmd));
