@@ -27,7 +27,8 @@ function createWindow() {
 function createTray() {
   // Use a built-in blank native image to avoid a missing external icon dependency.
   try {
-    const icon = nativeImage.createFromDataURL("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p7sAAAAASUVORK5CYII=");
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" rx="8" fill="#071426" stroke="#75e6ff" stroke-width="2"/><path d="M10 8h12v12q0 5-6 5t-6-5" fill="none" stroke="#75e6ff" stroke-width="2.5" stroke-linecap="round"/><circle cx="16" cy="7" r="2" fill="#8ee9d1"/></svg>';
+    const icon = nativeImage.createFromDataURL("data:image/svg+xml;base64," + Buffer.from(svg).toString("base64"));
     tray = new Tray(icon);
     tray.setToolTip("JARVIS Desktop");
     tray.setContextMenu(Menu.buildFromTemplate([
