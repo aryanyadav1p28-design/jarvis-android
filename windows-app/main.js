@@ -90,7 +90,7 @@ app.whenReady().then(() => {
     autoUpdater.on("update-available", info => sendUpdate("Naya update mil gaya (" + info.version + "). Download background mein hoga."));
     autoUpdater.on("update-not-available", () => sendUpdate("JARVIS latest version par hai."));
     autoUpdater.on("download-progress", p => sendUpdate("Update download: " + Math.round(p.percent) + "%"));
-    autoUpdater.on("update-downloaded", () => sendUpdate("Update download ho gaya. JARVIS ko X se band karo; installer start hona chahiye."));
+    autoUpdater.on("update-downloaded", () => sendUpdate("Update download ho gaya. Update install karne ke liye system tray mein JARVIS icon par right-click karke Quit JARVIS chuno."));
     autoUpdater.on("before-quit-for-update", () => { isQuitting = true; });
     autoUpdater.on("error", err => { console.error("Auto-update error", err); sendUpdate("Update abhi nahi ho saka; internet/release baad mein check karein."); });
     setTimeout(checkForUpdates, 8000);
