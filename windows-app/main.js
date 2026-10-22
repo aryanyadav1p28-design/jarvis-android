@@ -14,9 +14,9 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false }
   });
   win.loadFile("index.html");
-  win.on("close", (event) => {
-    if (!isQuitting && tray) { event.preventDefault(); win.hide(); }
-  });
+  // Closing the main window must quit JARVIS so a downloaded update can install.
+  // Previously the window only hid to a nearly invisible tray icon.
+  win.on("close", () => { isQuitting = true; });
 }
 function createTray() {
   // Use a built-in blank native image to avoid a missing external icon dependency.
@@ -83,7 +83,8 @@ app.whenReady().then(() => {
     autoUpdater.on("update-available", info => sendUpdate("Naya update mil gaya (" + info.version + "). Download background mein hoga."));
     autoUpdater.on("update-not-available", () => sendUpdate("JARVIS latest version par hai."));
     autoUpdater.on("download-progress", p => sendUpdate("Update download: " + Math.round(p.percent) + "%"));
-    autoUpdater.on("update-downloaded", () => sendUpdate("Update download ho gaya. JARVIS band karne par update install hoga."));
+    autoUpdater.on("update-downloaded", () => sendUpdate("Update download ho gaya. JARVIS ko X se band karo; installer start hona chahiye."));
+    autoUpdater.on("before-quit-for-update", () => { isQuitting = true; });
     autoUpdater.on("error", err => { console.error("Auto-update error", err); sendUpdate("Update abhi nahi ho saka; internet/release baad mein check karein."); });
     setTimeout(checkForUpdates, 8000);
   }
