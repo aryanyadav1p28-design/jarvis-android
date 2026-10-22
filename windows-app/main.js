@@ -40,15 +40,29 @@ function createTray() {
     tray.on("double-click", () => { if (win && !win.isDestroyed()) { win.show(); win.focus(); } });
   } catch (e) { console.error("Tray unavailable", e); }
 }
-function checkForUpdates() {
+let updateCheckInProgress = false;
+async function checkForUpdates() {
   if (!app.isPackaged) { sendUpdate("Update check packaged app mein hi available hai."); return; }
-  sendUpdate("JARVIS update check kar raha hai…");
-  try { autoUpdater.checkForUpdates(); } catch (e) { sendUpdate("Update check abhi nahi ho saka."); }
+  if (updateCheckInProgress) { sendUpdate("Update check pehle se chal raha hai…"); return; }
+  updateCheckInProgress = true;
+  sendUpdate("JARVIS latest release check kar raha hai…");
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (e) {
+    console.error("Auto-update check failed:", e);
+    sendUpdate("Update check fail hua: internet connection aur latest release assets check karein.");
+  } finally {
+    updateCheckInProgress = false;
+  }
 }
 app.whenReady().then(() => {
   ipcMain.handle("jarvis:command", async (_event, raw) => {
     const text = String(raw || "").trim().toLowerCase();
     if (!text) return { ok: false, message: "Command khaali hai." };
+    const greetingOnly = /^(hey\s+)?(jarvis|google|hello|hi|namaste|नमस्ते)(\s+jarvis)?[!. ]*$/i.test(text);
+    if (greetingOnly) return { ok: true, message: "Hello boss, bataiye kya karna hai?" };
+    const commandText = text.replace(/^(hey\s+jarvis|hello\s+jarvis|hi\s+jarvis|hey\s+google|hello|hi|jarvis)[,!. ]+/i, "").trim();
+    const command = commandText || text;
     const sites = [
       { keys: ["youtube", "यूट्यूब"], url: "https://www.youtube.com" },
       { keys: ["google", "गूगल"], url: "https://www.google.com" },
@@ -58,7 +72,7 @@ app.whenReady().then(() => {
       { keys: ["drive", "ड्राइव", "google drive"], url: "https://drive.google.com" }
     ];
     for (const site of sites) {
-      if (site.keys.some(k => text.includes(k)) && /(kholo|open|launch|chalao|खोल|चलाओ|खोलो)/i.test(text)) {
+      if (site.keys.some(k => command.includes(k)) && /(kholo|open|launch|chalao|खोल|चलाओ|खोलो)/i.test(command)) {
         try { await shell.openExternal(site.url); return { ok: true, message: site.keys[0] + " browser mein khol diya." }; }
         catch (e) { return { ok: false, message: "Browser link nahi khul saka: " + e.message }; }
       }
@@ -68,15 +82,15 @@ app.whenReady().then(() => {
       "file explorer": "explorer.exe", "explorer": "explorer.exe", "task manager": "taskmgr.exe"
     };
     for (const [key, exe] of Object.entries(allowed)) {
-      if (text.includes(key) || (key === "calculator" && text.includes("कैलकुलेटर")) || (key === "notepad" && text.includes("नोटपैड"))) {
+      if (command.includes(key) || (key === "calculator" && command.includes("कैलकुलेटर")) || (key === "notepad" && command.includes("नोटपैड"))) {
         try { spawn(exe, [], { detached: true, stdio: "ignore", windowsHide: false }).unref(); return { ok: true, message: key + " app khol diya." }; }
         catch (e) { return { ok: false, message: key + " nahi khul saka: " + e.message }; }
       }
     }
-    if (text.includes("time") || text.includes("samay") || text.includes("समय")) return { ok: true, message: "Abhi samay " + new Date().toLocaleTimeString("en-IN") + " hai." };
-    if (text.includes("band") || text.includes("close") || text.includes("shutdown") || text.includes("शटडाउन")) return { ok: false, message: "Safety ke liye shutdown ya apps band karne ka command abhi execute nahi karta." };
-    if (text.includes("update") || text.includes("अपडेट")) { checkForUpdates(); return { ok: true, message: "Update check shuru kar diya." }; }
-    if (text.includes("help") || text.includes("madad") || text.includes("मदद")) return { ok: true, message: "YouTube, Google, WhatsApp, Gmail, Drive, Notepad, Calculator, Paint, Explorer, time aur update commands available hain." };
+    if (command.includes("time") || command.includes("samay") || command.includes("समय")) return { ok: true, message: "Abhi samay " + new Date().toLocaleTimeString("en-IN") + " hai." };
+    if (command.includes("band") || command.includes("close") || command.includes("shutdown") || command.includes("शटडाउन")) return { ok: false, message: "Safety ke liye shutdown ya apps band karne ka command abhi execute nahi karta." };
+    if (command.includes("update") || command.includes("अपडेट")) { checkForUpdates(); return { ok: true, message: "Update check shuru kar diya." }; }
+    if (command.includes("help") || command.includes("madad") || command.includes("मदद")) return { ok: true, message: "YouTube, Google, WhatsApp, Gmail, Drive, Notepad, Calculator, Paint, Explorer, time aur update commands available hain." };
     return { ok: false, message: "Yeh command abhi supported nahi hai. Help bolkar supported commands dekho." };
   });
   ipcMain.handle("jarvis:check-updates", () => { checkForUpdates(); return true; });
