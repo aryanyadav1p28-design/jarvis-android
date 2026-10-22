@@ -7,14 +7,14 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis"
+    "dist": "electron-builder --win nsis --publish never"
   },
   "devDependencies": {
     "electron": "^35.0.0",
-    "electron-builder": "^26.0.0"
+    "electron-builder": "26.0.12"
   },
   "dependencies": {
-    "electron-updater": "^6.6.2"
+    "electron-updater": "6.6.2"
   },
   "build": {
     "appId": "com.jarvis.desktop",
