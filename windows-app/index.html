@@ -30,7 +30,7 @@ function speak(text){
   u.volume=1;
   window.speechSynthesis.speak(u);
 }
-async async function run(text){text=String(text||'').trim();if(!text)return;add(text,'user');cmd.value='';statusEl.textContent='Command chal raha hai…';try{const result=await window.jarvis.runCommand(text);add(result.message);statusEl.textContent=result.ok?'Command complete':'Command nahi chala';speak(result.message)}catch(error){statusEl.textContent='Command run nahi hua. App restart karke dobara try karo.';add('Command run nahi hua. App restart karke dobara try karo.')}}
+async function run(text){text=String(text||'').trim();if(!text)return;add(text,'user');cmd.value='';statusEl.textContent='Command chal raha hai…';try{const result=await window.jarvis.runCommand(text);add(result.message);statusEl.textContent=result.ok?'Command complete':'Command nahi chala';speak(result.message)}catch(error){statusEl.textContent='Command run nahi hua. App restart karke dobara try karo.';add('Command run nahi hua. App restart karke dobara try karo.')}}
 document.getElementById('send').onclick=()=>run(cmd.value);cmd.addEventListener('keydown',e=>{if(e.key==='Enter')run(cmd.value)});
 document.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>run(b.dataset.cmd));
 document.getElementById('stop').onclick=()=>{if('speechSynthesis'in window)window.speechSynthesis.cancel();statusEl.textContent='Voice stopped';};
