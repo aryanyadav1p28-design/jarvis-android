@@ -1,51 +1,92 @@
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
-let win;
+let win, tray, isQuitting = false;
+
+function sendUpdate(message) {
+  if (win && !win.isDestroyed()) win.webContents.send("jarvis:update-status", message);
+}
 function createWindow() {
   win = new BrowserWindow({
     width: 1180, height: 780, minWidth: 820, minHeight: 600,
-    title: "JARVIS Desktop",
-    backgroundColor: "#071426",
+    title: "JARVIS Desktop", backgroundColor: "#071426",
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false }
   });
   win.loadFile("index.html");
+  win.on("close", (event) => {
+    if (!isQuitting && tray) { event.preventDefault(); win.hide(); }
+  });
 }
-app.whenReady().then(() => { createWindow(); app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); }); });
-app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
-
-const allowed = {
-  "notepad": ["notepad.exe", []],
-  "calculator": ["calc.exe", []],
-  "paint": ["mspaint.exe", []],
-  "file explorer": ["explorer.exe", []],
-  "explorer": ["explorer.exe", []],
-  "task manager": ["taskmgr.exe", []]
-};
-ipcMain.handle("jarvis:command", async (_event, raw) => {
-  const text = String(raw || "").trim().toLowerCase();
-  if (!text) return { ok: false, message: "Command khaali hai." };
-  const sites = [
-    { keys: ["youtube", "यूट्यूब"], url: "https://www.youtube.com" },
-    { keys: ["google", "गूगल"], url: "https://www.google.com" },
-    { keys: ["whatsapp", "व्हाट्सएप"], url: "https://web.whatsapp.com" },
-    { keys: ["instagram", "इंस्टाग्राम"], url: "https://www.instagram.com" },
-    { keys: ["gmail", "जीमेल"], url: "https://mail.google.com" },
-    { keys: ["drive", "ड्राइव", "google drive"], url: "https://drive.google.com" }
-  ];
-  for (const site of sites) {
-    if (site.keys.some(k => text.includes(k)) && /(kholo|open|launch|chalao|खोल|चलाओ|खोलो)/i.test(text)) {
-      try { await shell.openExternal(site.url); return { ok: true, message: site.keys[0] + " browser mein khol diya." }; }
-      catch (e) { return { ok: false, message: "Browser link nahi khul saka: " + e.message }; }
+function createTray() {
+  // Use a built-in blank native image to avoid a missing external icon dependency.
+  try {
+    const icon = nativeImage.createFromDataURL("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p7sAAAAASUVORK5CYII=");
+    tray = new Tray(icon);
+    tray.setToolTip("JARVIS Desktop");
+    tray.setContextMenu(Menu.buildFromTemplate([
+      { label: "Open JARVIS", click: () => { if (!win || win.isDestroyed()) createWindow(); win.show(); win.focus(); } },
+      { label: "Check for updates", click: () => checkForUpdates() },
+      { type: "separator" },
+      { label: "Quit JARVIS", click: () => { isQuitting = true; app.quit(); } }
+    ]));
+    tray.on("double-click", () => { if (win && !win.isDestroyed()) { win.show(); win.focus(); } });
+  } catch (e) { console.error("Tray unavailable", e); }
+}
+function checkForUpdates() {
+  if (!app.isPackaged) { sendUpdate("Update check packaged app mein hi available hai."); return; }
+  sendUpdate("JARVIS update check kar raha hai…");
+  try { autoUpdater.checkForUpdates(); } catch (e) { sendUpdate("Update check abhi nahi ho saka."); }
+}
+app.whenReady().then(() => {
+  ipcMain.handle("jarvis:command", async (_event, raw) => {
+    const text = String(raw || "").trim().toLowerCase();
+    if (!text) return { ok: false, message: "Command khaali hai." };
+    const sites = [
+      { keys: ["youtube", "यूट्यूब"], url: "https://www.youtube.com" },
+      { keys: ["google", "गूगल"], url: "https://www.google.com" },
+      { keys: ["whatsapp", "व्हाट्सएप"], url: "https://web.whatsapp.com" },
+      { keys: ["instagram", "इंस्टाग्राम"], url: "https://www.instagram.com" },
+      { keys: ["gmail", "जीमेल"], url: "https://mail.google.com" },
+      { keys: ["drive", "ड्राइव", "google drive"], url: "https://drive.google.com" }
+    ];
+    for (const site of sites) {
+      if (site.keys.some(k => text.includes(k)) && /(kholo|open|launch|chalao|खोल|चलाओ|खोलो)/i.test(text)) {
+        try { await shell.openExternal(site.url); return { ok: true, message: site.keys[0] + " browser mein khol diya." }; }
+        catch (e) { return { ok: false, message: "Browser link nahi khul saka: " + e.message }; }
+      }
     }
-  }
-  for (const [key, value] of Object.entries(allowed)) {
-    if (text.includes(key) || (key === "calculator" && text.includes("कैलकुलेटर")) || (key === "notepad" && text.includes("नोटपैड"))) {
-      try { spawn(value[0], value[1], { detached: true, stdio: "ignore", windowsHide: false }).unref(); return { ok: true, message: key + " app khol diya." }; }
-      catch (e) { return { ok: false, message: key + " nahi khul saka: " + e.message }; }
+    const allowed = {
+      "notepad": "notepad.exe", "calculator": "calc.exe", "paint": "mspaint.exe",
+      "file explorer": "explorer.exe", "explorer": "explorer.exe", "task manager": "taskmgr.exe"
+    };
+    for (const [key, exe] of Object.entries(allowed)) {
+      if (text.includes(key) || (key === "calculator" && text.includes("कैलकुलेटर")) || (key === "notepad" && text.includes("नोटपैड"))) {
+        try { spawn(exe, [], { detached: true, stdio: "ignore", windowsHide: false }).unref(); return { ok: true, message: key + " app khol diya." }; }
+        catch (e) { return { ok: false, message: key + " nahi khul saka: " + e.message }; }
+      }
     }
+    if (text.includes("time") || text.includes("samay") || text.includes("समय")) return { ok: true, message: "Abhi samay " + new Date().toLocaleTimeString("en-IN") + " hai." };
+    if (text.includes("band") || text.includes("close") || text.includes("shutdown") || text.includes("शटडाउन")) return { ok: false, message: "Safety ke liye shutdown ya apps band karne ka command abhi execute nahi karta." };
+    if (text.includes("update") || text.includes("अपडेट")) { checkForUpdates(); return { ok: true, message: "Update check shuru kar diya." }; }
+    if (text.includes("help") || text.includes("madad") || text.includes("मदद")) return { ok: true, message: "YouTube, Google, WhatsApp, Gmail, Drive, Notepad, Calculator, Paint, Explorer, time aur update commands available hain." };
+    return { ok: false, message: "Yeh command abhi supported nahi hai. Help bolkar supported commands dekho." };
+  });
+  ipcMain.handle("jarvis:check-updates", () => { checkForUpdates(); return true; });
+  createWindow();
+  createTray();
+  if (app.isPackaged) {
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.on("checking-for-update", () => sendUpdate("Updates check ho rahe hain…"));
+    autoUpdater.on("update-available", info => sendUpdate("Naya update mil gaya (" + info.version + "). Download background mein hoga."));
+    autoUpdater.on("update-not-available", () => sendUpdate("JARVIS latest version par hai."));
+    autoUpdater.on("download-progress", p => sendUpdate("Update download: " + Math.round(p.percent) + "%"));
+    autoUpdater.on("update-downloaded", () => sendUpdate("Update download ho gaya. JARVIS band karne par update install hoga."));
+    autoUpdater.on("error", err => { console.error("Auto-update error", err); sendUpdate("Update abhi nahi ho saka; internet/release baad mein check karein."); });
+    setTimeout(checkForUpdates, 8000);
   }
-  if (text.includes("time") || text.includes("samay") || text.includes("समय")) return { ok: true, message: "Abhi samay " + new Date().toLocaleTimeString("en-IN") + " hai." };
-  if (text.includes("band") || text.includes("close") || text.includes("shutdown") || text.includes("शटडाउन")) return { ok: false, message: "Safety ke liye main shutdown ya apps band karne ka command abhi execute nahi karta." };
-  return { ok: false, message: "Yeh command abhi supported nahi hai. Help mein commands dekho." };
+  app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
+app.on("before-quit", () => { isQuitting = true; });
+app.on("window-all-closed", () => { if (process.platform !== "darwin" && !tray) app.quit(); });
