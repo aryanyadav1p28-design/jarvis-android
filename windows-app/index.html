@@ -35,6 +35,30 @@ document.getElementById('send').onclick=()=>run(cmd.value);cmd.addEventListener(
 document.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>run(b.dataset.cmd));
 document.getElementById('stop').onclick=()=>{if('speechSynthesis'in window)window.speechSynthesis.cancel();statusEl.textContent='Voice stopped';};
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let recognition;
-if(SR){recognition=new SR();recognition.lang='hi-IN';recognition.interimResults=false;recognition.maxAlternatives=1;recognition.onstart=()=>statusEl.textContent='Sun raha hoon…';recognition.onresult=e=>run(e.results[0][0].transcript);recognition.onerror=e=>{if(e.error==='network'){statusEl.textContent='Voice network error: Windows app ka speech engine internet service se connect nahi hua. Internet/VPN check karke dobara try karo; abhi text command kaam karegi.';}else if(e.error==='not-allowed'||e.error==='service-not-allowed'){statusEl.textContent='Microphone permission blocked hai. Windows Settings > Privacy & security > Microphone mein access allow karo.';}else if(e.error==='audio-capture'){statusEl.textContent='Microphone nahi mil raha. Windows Sound settings mein mic select/check karo.';}else{statusEl.textContent='Voice error: '+e.error+' · Filhaal command type kar sakte ho.';}};recognition.onend=()=>{if(statusEl.textContent==='Sun raha hoon…')statusEl.textContent='Listening band';};}
-document.getElementById('listen').onclick=()=>{if(!recognition){statusEl.textContent='Is build mein speech recognition available nahi. Text command use karo.';return}try{recognition.start()}catch(e){statusEl.textContent='Mic dobara start karne se pehle thoda wait karo.'}};
+if(SR){
+  recognition=new SR();recognition.lang='hi-IN';recognition.interimResults=false;recognition.maxAlternatives=1;
+  recognition.onstart=()=>statusEl.textContent='Microphone active · Hindi speech service se connect ho raha hoon…';
+  recognition.onresult=e=>{const heard=e.results?.[0]?.[0]?.transcript;if(heard)run(heard);else statusEl.textContent='Awaaz samajh nahi aayi. Dobara try karo ya command type karo.';};
+  recognition.onerror=e=>{
+    const messages={
+      network:'Online speech service connect nahi hui. Internet chalne ke bawajood yeh Electron/Chromium speech-service limitation ho sakti hai; sirf VPN ya mic permission badalne se fix hona guaranteed nahi. Text command abhi use kar sakte ho.',
+      'not-allowed':'Microphone permission blocked hai. Windows Settings > Privacy & security > Microphone mein access allow karo.',
+      'service-not-allowed':'Speech service is app mein allowed nahi hai. Text command abhi use karo.',
+      'audio-capture':'Microphone nahi mil raha. Windows Sound settings mein mic select/check karo.',
+      'no-speech':'Awaaz detect nahi hui. Mic ke paas bolkar dobara try karo.',
+      aborted:'Voice listening rok di gayi.'
+    };
+    statusEl.textContent='Voice error: '+(messages[e.error]||('Code '+e.error+'. Text command use karo.'));
+  };
+  recognition.onend=()=>{if(statusEl.textContent.startsWith('Microphone active'))statusEl.textContent='Listening band · Dobara bolne ke liye mic button dabao.';};
+}
+document.getElementById('listen').onclick=()=>{
+  if(!recognition){statusEl.textContent='Is Electron build mein speech recognition API available nahi. Text command use karo.';return;}
+  try{recognition.start()}catch(e){statusEl.textContent='Voice session start nahi hui. 1–2 second baad dobara try karo.';}
+};
+if(window.jarvis?.onUpdateStatus){
+  window.jarvis.onUpdateStatus(message=>{
+    statusEl.textContent='Update: '+String(message);
+  });
+}
 </script></body></html>
