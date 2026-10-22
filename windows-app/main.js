@@ -16,7 +16,13 @@ function createWindow() {
   win.loadFile("index.html");
   // Closing the main window must quit JARVIS so a downloaded update can install.
   // Previously the window only hid to a nearly invisible tray icon.
-  win.on("close", () => { isQuitting = true; });
+  win.on("close", (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      isQuitting = true;
+      app.quit();
+    }
+  });
 }
 function createTray() {
   // Use a built-in blank native image to avoid a missing external icon dependency.
