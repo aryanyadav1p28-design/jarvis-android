@@ -12,6 +12,11 @@ on:
 permissions:
   contents: write
 
+# Prevent overlapping builds from racing to publish latest.yml / the latest release.
+concurrency:
+  group: jarvis-windows-release
+  cancel-in-progress: false
+
 jobs:
   build-release:
     runs-on: windows-latest
