@@ -34,27 +34,50 @@ async function run(text){text=String(text||'').trim();if(!text)return;add(text,'
 document.getElementById('send').onclick=()=>run(cmd.value);cmd.addEventListener('keydown',e=>{if(e.key==='Enter')run(cmd.value)});
 document.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>run(b.dataset.cmd));
 document.getElementById('stop').onclick=()=>{if('speechSynthesis'in window)window.speechSynthesis.cancel();statusEl.textContent='Voice stopped';};
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let recognition;
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let recognition;let wakeMode=true;let wakePaused=false;
 if(SR){
-  recognition=new SR();recognition.lang='hi-IN';recognition.interimResults=false;recognition.maxAlternatives=1;
-  recognition.onstart=()=>statusEl.textContent='Microphone active · Hindi speech service se connect ho raha hoon…';
-  recognition.onresult=e=>{const heard=e.results?.[0]?.[0]?.transcript;if(heard)run(heard);else statusEl.textContent='Awaaz samajh nahi aayi. Dobara try karo ya command type karo.';};
+  recognition=new SR();recognition.lang='en-IN';recognition.continuous=true;recognition.interimResults=true;recognition.maxAlternatives=1;
+  recognition.onstart=()=>statusEl.textContent=wakeMode?'Background wake listening active · “Hey Google” bolo.':'Mic active · Apni command bolo…';
+  recognition.onresult=e=>{
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const item=e.results[i];if(!item.isFinal)continue;
+      const heard=String(item[0]?.transcript||'').trim();
+      if(wakeMode){
+        if(/hey\s+google|hey\s+jarvis/i.test(heard)){
+          add(heard,'user');add('Hello boss.');speak('Hello boss');statusEl.textContent='Hello boss · Main background mein hoon.';
+        }
+      }else if(heard){
+        wakeMode=true;
+        run(heard);
+        try{recognition.stop()}catch(_){}
+      }
+    }
+  };
   recognition.onerror=e=>{
     const messages={
-      network:'Online speech service connect nahi hui. Electron/Chromium ka speech backend is Windows setup par available nahi lag raha. Mic permission se yeh error zaroori nahi theek ho. Abhi text command use karo; offline voice engine alag se install/package kiye bina voice ko guaranteed fix nahi kar sakte.',
+      network:'Online speech service connect nahi hui. Always-listening wake word is device par abhi kaam nahi kar sakta. Text command use karo; offline speech engine alag se package karna hoga.',
       'not-allowed':'Microphone permission blocked hai. Windows Settings > Privacy & security > Microphone mein access allow karo.',
       'service-not-allowed':'Speech service is app mein allowed nahi hai. Text command abhi use karo.',
       'audio-capture':'Microphone nahi mil raha. Windows Sound settings mein mic select/check karo.',
-      'no-speech':'Awaaz detect nahi hui. Mic ke paas bolkar dobara try karo.',
-      aborted:'Voice listening rok di gayi.'
+      'no-speech':'Wake listening ko awaaz nahi mili.',
+      aborted:'Voice listening restart ho rahi hai.'
     };
     statusEl.textContent='Voice error: '+(messages[e.error]||('Code '+e.error+'. Text command use karo.'));
+    if(e.error==='network'||e.error==='not-allowed'||e.error==='service-not-allowed'||e.error==='audio-capture')wakePaused=true;
   };
-  recognition.onend=()=>{if(statusEl.textContent.startsWith('Microphone active'))statusEl.textContent='Listening band · Dobara bolne ke liye mic button dabao.';};
+  recognition.onend=()=>{
+    if(wakeMode&&!wakePaused){
+      statusEl.textContent='Background wake listening dobara start ho rahi hai…';
+      setTimeout(()=>{try{recognition.start()}catch(_){}},1200);
+    }else if(!wakeMode){statusEl.textContent='Listening band · Mic button se command bol sakte ho.';}
+  };
+  // Request mic access and start wake-word listening when the app opens.
+  setTimeout(()=>{try{recognition.start()}catch(_){statusEl.textContent='Wake listening start nahi hui. Mic button dabakar permission allow karo.';}},1800);
 }
 document.getElementById('listen').onclick=()=>{
   if(!recognition){statusEl.textContent='Is Electron build mein speech recognition API available nahi. Text command use karo.';return;}
-  try{recognition.start()}catch(e){statusEl.textContent='Voice session start nahi hui. 1–2 second baad dobara try karo.';}
+  wakeMode=false;wakePaused=false;
+  try{recognition.stop();setTimeout(()=>{try{recognition.start()}catch(e){statusEl.textContent='Voice session start nahi hui. 1–2 second baad dobara try karo.';}},250)}catch(e){try{recognition.start()}catch(_){}}
 };
 const updateStatusEl=document.getElementById('update-status');
 document.getElementById('check-update').onclick=async()=>{updateStatusEl.textContent='Status: update check shuru ho raha hai…';try{await window.jarvis.checkUpdates();}catch(e){updateStatusEl.textContent='Status: update check start nahi hua. JARVIS restart karke try karo.';}};
