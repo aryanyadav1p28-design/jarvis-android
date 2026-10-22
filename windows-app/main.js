@@ -73,6 +73,7 @@ app.whenReady().then(() => {
     return { ok: false, message: "Yeh command abhi supported nahi hai. Help bolkar supported commands dekho." };
   });
   ipcMain.handle("jarvis:check-updates", () => { checkForUpdates(); return true; });
+  ipcMain.handle("jarvis:app-version", () => app.getVersion());
   createWindow();
   createTray();
   if (app.isPackaged) {
