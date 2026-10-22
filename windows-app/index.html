@@ -63,7 +63,10 @@ if(SR){
       aborted:'Voice listening restart ho rahi hai.'
     };
     statusEl.textContent='Voice error: '+(messages[e.error]||('Code '+e.error+'. Text command use karo.'));
-    if(e.error==='network'||e.error==='not-allowed'||e.error==='service-not-allowed'||e.error==='audio-capture')wakePaused=true;
+    // Network speech recognition is provided by the Chromium/OS service, not an offline engine.
+    // Pause on hard permission/device errors; let the user retry after a network error.
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'||e.error==='audio-capture')wakePaused=true;
+    if(e.error==='network')wakePaused=true;
   };
   recognition.onend=()=>{
     if(wakeMode&&!wakePaused){
@@ -77,7 +80,9 @@ if(SR){
 document.getElementById('listen').onclick=()=>{
   if(!recognition){statusEl.textContent='Is Electron build mein speech recognition API available nahi. Text command use karo.';return;}
   wakeMode=false;wakePaused=false;
-  try{recognition.stop();setTimeout(()=>{try{recognition.start()}catch(e){statusEl.textContent='Voice session start nahi hui. 1–2 second baad dobara try karo.';}},250)}catch(e){try{recognition.start()}catch(_){}}
+  statusEl.textContent='Mic start ho raha hai… Internet speech service zaroori ho sakti hai.';
+  try{recognition.abort();}catch(_){}
+  setTimeout(()=>{try{recognition.start()}catch(e){statusEl.textContent='Mic start nahi hua. Windows microphone permission aur internet check karke dobara dabao.';}},500);
 };
 const updateStatusEl=document.getElementById('update-status');
 document.getElementById('check-update').onclick=async()=>{updateStatusEl.textContent='Status: update check shuru ho raha hai…';try{await window.jarvis.checkUpdates();}catch(e){updateStatusEl.textContent='Status: update check start nahi hua. JARVIS restart karke try karo.';}};
