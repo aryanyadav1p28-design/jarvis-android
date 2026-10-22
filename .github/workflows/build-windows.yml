@@ -41,6 +41,15 @@ jobs:
         run: npm install
       - name: Build Windows installer and updater metadata
         run: npx electron-builder --win nsis --publish never
+      - name: Verify updater metadata matches this build
+        shell: pwsh
+        run: |
+          $metadata = Get-Content -Raw "dist/latest.yml"
+          if ($metadata -notmatch "(?m)^version:\s*$([regex]::Escape($env:APP_VERSION))\s*$") {
+            Write-Error "latest.yml version does not match package version $env:APP_VERSION"
+            exit 1
+          }
+          Write-Host "Verified latest.yml version $env:APP_VERSION"
       - name: Publish release for auto-updates
         uses: softprops/action-gh-release@v2
         with:
