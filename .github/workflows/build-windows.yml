@@ -1,0 +1,40 @@
+name: Build JARVIS Windows App
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - jarvis-windows-app
+    paths:
+      - "windows-app/**"
+      - ".github/workflows/build-windows.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows-app
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: windows-app/package.json
+      - name: Install dependencies
+        run: npm install
+      - name: Build portable Windows executable
+        run: npm run dist
+      - name: Upload downloadable EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-Desktop-Windows
+          path: windows-app/dist/*.exe
+          if-no-files-found: error
+          retention-days: 14
