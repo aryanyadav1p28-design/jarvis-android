@@ -1,27 +1,28 @@
 {
   "name": "jarvis-windows-desktop",
-  "version": "0.1.0",
-  "description": "JARVIS Windows desktop assistant starter",
+  "version": "1.0.0",
+  "description": "JARVIS Windows desktop assistant",
   "main": "main.js",
   "author": "JARVIS",
   "license": "UNLICENSED",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win portable",
-    "dist:installer": "electron-builder --win nsis"
+    "dist": "electron-builder --win nsis"
   },
   "devDependencies": {
     "electron": "^35.0.0",
     "electron-builder": "^26.0.0"
   },
+  "dependencies": {
+    "electron-updater": "^6.6.2"
+  },
   "build": {
     "appId": "com.jarvis.desktop",
     "productName": "JARVIS Desktop",
     "directories": { "output": "dist" },
-    "files": ["main.js", "preload.js", "index.html"],
-    "win": {
-      "target": ["portable"],
-      "artifactName": "JARVIS-Desktop-${version}-Windows.${ext}"
-    }
+    "files": ["main.js", "preload.js", "index.html", "package.json"],
+    "publish": [{ "provider": "github", "owner": "aryanyadav1p28-design", "repo": "jarvis-android", "releaseType": "release" }],
+    "win": { "target": ["nsis"], "artifactName": "JARVIS-Desktop-Setup-${version}.${ext}" },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "createStartMenuShortcut": true }
   }
 }
