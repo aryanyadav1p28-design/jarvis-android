@@ -1,4 +1,4 @@
-name: Build JARVIS Windows App
+name: Build and Release JARVIS Windows App
 
 on:
   workflow_dispatch:
@@ -10,10 +10,10 @@ on:
       - ".github/workflows/build-windows.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  build-windows:
+  build-release:
     runs-on: windows-latest
     defaults:
       run:
@@ -21,18 +21,32 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Set unique version for this build
+        shell: pwsh
+        run: |
+          $version = "1.0.${{ github.run_number }}"
+          npm version $version --no-git-tag-version
+          "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "RELEASE_TAG=v$version" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Install dependencies
         run: npm install
-      - name: Build portable Windows executable
+      - name: Build Windows installer
         run: npm run dist
-      - name: Upload downloadable EXE
-        uses: actions/upload-artifact@v4
+      - name: Publish release for auto-updates
+        uses: softprops/action-gh-release@v2
         with:
-          name: JARVIS-Desktop-Windows
-          path: windows-app/dist/*.exe
-          if-no-files-found: error
-          retention-days: 14
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: JARVIS Desktop ${{ env.APP_VERSION }}
+          target_commitish: jarvis-windows-app
+          generate_release_notes: true
+          make_latest: true
+          files: |
+            windows-app/dist/*.exe
+            windows-app/dist/latest.yml
+            windows-app/dist/*.blockmap
