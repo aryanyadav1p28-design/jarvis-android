@@ -60,7 +60,9 @@ if(SR){
       const heard=pickTranscript(item);if(!heard)continue;
       if(wakeMode){
         if(/hey\\s+google|hey\\s+jarvis|हे\\s+जार्विस|हे\\s+गूगल|जार्विस/i.test(heard)){
-          add(heard,'user');add('Hello boss.');speak('Hello boss');statusEl.textContent='Hello boss · Main background mein hoon.';
+          add(heard,'user');add('Haan boss, command boliye.');speak('Haan boss, command boliye');
+          wakeMode=false;
+          statusEl.textContent='Wake word suna · Ab apni command boliye…';
         }
       }else{
         wakeMode=true;
