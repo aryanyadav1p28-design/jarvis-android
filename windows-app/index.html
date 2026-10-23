@@ -36,18 +36,35 @@ document.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>run(b.dataset.c
 document.getElementById('stop').onclick=()=>{if('speechSynthesis'in window)window.speechSynthesis.cancel();statusEl.textContent='Voice stopped';};
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let recognition;let wakeMode=true;let wakePaused=false;
 if(SR){
-  recognition=new SR();recognition.lang='hi-IN';recognition.continuous=true;recognition.interimResults=false;recognition.maxAlternatives=3;
+  recognition=new SR();recognition.lang='hi-IN';recognition.continuous=true;recognition.interimResults=false;recognition.maxAlternatives=5;
   recognition.onstart=()=>statusEl.textContent=wakeMode?'Background wake listening active · “Hey Google” bolo.':'Mic active · Apni command bolo…';
+  function pickTranscript(item){
+    const candidates=[];
+    for(let n=0;n<Math.min(item.length||1,5);n++){
+      const value=String(item[n]?.transcript||'').trim();
+      if(value&&!candidates.includes(value))candidates.push(value);
+    }
+    const score=s=>{let n=0;
+      if(/youtube|यूट्यूब|google|गूगल|whatsapp|व्हाट्सएप|instagram|इंस्टाग्राम|gmail|जीमेल|drive|ड्राइव/i.test(s))n+=5;
+      if(/notepad|नोटपैड|calculator|कैलकुलेटर|paint|explorer|फाइल एक्सप्लोरर/i.test(s))n+=5;
+      if(/खोलो|खोल|kholo|open|launch|chalao|चलाओ/i.test(s))n+=3;
+      if(/समय|samay|time|help|madad|मदद/i.test(s))n+=2;
+      if(s.length>90)n-=2;
+      return n;
+    };
+    return candidates.sort((a,b)=>score(b)-score(a))[0]||'';
+  }
   recognition.onresult=e=>{
     for(let i=e.resultIndex;i<e.results.length;i++){
       const item=e.results[i];if(!item.isFinal)continue;
-      const heard=String(item[0]?.transcript||item[1]?.transcript||item[2]?.transcript||'').trim();
+      const heard=pickTranscript(item);if(!heard)continue;
       if(wakeMode){
-        if(/hey\s+google|hey\s+jarvis|हे\s+जार्विस|हे\s+गूगल/i.test(heard)){
+        if(/hey\\s+google|hey\\s+jarvis|हे\\s+जार्विस|हे\\s+गूगल|जार्विस/i.test(heard)){
           add(heard,'user');add('Hello boss.');speak('Hello boss');statusEl.textContent='Hello boss · Main background mein hoon.';
         }
-      }else if(heard){
+      }else{
         wakeMode=true;
+        statusEl.textContent='Suna: '+heard;
         run(heard);
         try{recognition.stop()}catch(_){}
       }
