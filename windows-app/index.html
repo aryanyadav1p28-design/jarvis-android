@@ -34,7 +34,7 @@ async function run(text){text=String(text||'').trim();if(!text)return;add(text,'
 document.getElementById('send').onclick=()=>run(cmd.value);cmd.addEventListener('keydown',e=>{if(e.key==='Enter')run(cmd.value)});
 document.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>run(b.dataset.cmd));
 document.getElementById('stop').onclick=()=>{if('speechSynthesis'in window)window.speechSynthesis.cancel();statusEl.textContent='Voice stopped';};
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let recognition;let wakeMode=true;let wakePaused=false;
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let recognition;let wakeMode=true;let wakePaused=false;let recognitionFailed=false;
 if(SR){
   recognition=new SR();recognition.lang='hi-IN';recognition.continuous=true;recognition.interimResults=false;recognition.maxAlternatives=5;
   recognition.onstart=()=>statusEl.textContent=wakeMode?'Background wake listening active · “Hey Google” bolo.':'Mic active · Apni command bolo…';
@@ -71,6 +71,7 @@ if(SR){
     }
   };
   recognition.onerror=e=>{
+    recognitionFailed=true;
     const messages={
       network:'Online speech service connect nahi hui. Always-listening wake word is device par abhi kaam nahi kar sakta. Text command use karo; offline speech engine alag se package karna hoga.',
       'not-allowed':'Microphone permission blocked hai. Windows Settings > Privacy & security > Microphone mein access allow karo.',
@@ -83,11 +84,17 @@ if(SR){
     // Network speech recognition is provided by the Chromium/OS service, not an offline engine.
     // Pause on hard permission/device errors; let the user retry after a network error.
     if(e.error==='not-allowed'||e.error==='service-not-allowed'||e.error==='audio-capture')wakePaused=true;
-    // Network failures can be temporary: allow a delayed restart instead of permanently disabling the mic.
-    if(e.error==='network')wakePaused=false;
+    // Chromium/Electron network failures can repeat indefinitely. Pause automatic retries
+    // so the microphone does not flap on/off; the user can retry with the mic button.
+    if(e.error==='network')wakePaused=true;
   };
   let restartTimer=null;let restartDelay=1200;
   recognition.onend=()=>{
+    if(recognitionFailed){
+      recognitionFailed=false;
+      clearTimeout(restartTimer);
+      if(wakePaused){statusEl.textContent='Speech service ruk gayi. Mic button se ek baar retry karo; text commands abhi bhi kaam karenge.';return;}
+    }
     if(wakeMode&&!wakePaused){
       statusEl.textContent='Voice listening dobara start ho rahi hai…';
       clearTimeout(restartTimer);
@@ -99,7 +106,8 @@ if(SR){
 }
 document.getElementById('listen').onclick=()=>{
   if(!recognition){statusEl.textContent='Is Electron build mein speech recognition API available nahi. Text command use karo.';return;}
-  wakeMode=false;wakePaused=false;
+  wakeMode=false;wakePaused=false;recognitionFailed=false;
+  clearTimeout(restartTimer);
   statusEl.textContent='Mic start ho raha hai… Internet speech service zaroori ho sakti hai.';
   try{recognition.abort();}catch(_){}
   setTimeout(()=>{try{recognition.start()}catch(e){statusEl.textContent='Mic start nahi hua. Windows microphone permission aur internet check karke dobara dabao.';}},500);
