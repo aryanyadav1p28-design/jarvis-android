@@ -36,14 +36,14 @@ document.querySelectorAll('[data-cmd]').forEach(b=>b.onclick=()=>run(b.dataset.c
 document.getElementById('stop').onclick=()=>{if('speechSynthesis'in window)window.speechSynthesis.cancel();statusEl.textContent='Voice stopped';};
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let recognition;let wakeMode=true;let wakePaused=false;
 if(SR){
-  recognition=new SR();recognition.lang='en-IN';recognition.continuous=true;recognition.interimResults=true;recognition.maxAlternatives=1;
+  recognition=new SR();recognition.lang='hi-IN';recognition.continuous=true;recognition.interimResults=false;recognition.maxAlternatives=3;
   recognition.onstart=()=>statusEl.textContent=wakeMode?'Background wake listening active · “Hey Google” bolo.':'Mic active · Apni command bolo…';
   recognition.onresult=e=>{
     for(let i=e.resultIndex;i<e.results.length;i++){
       const item=e.results[i];if(!item.isFinal)continue;
-      const heard=String(item[0]?.transcript||'').trim();
+      const heard=String(item[0]?.transcript||item[1]?.transcript||item[2]?.transcript||'').trim();
       if(wakeMode){
-        if(/hey\s+google|hey\s+jarvis/i.test(heard)){
+        if(/hey\s+google|hey\s+jarvis|हे\s+जार्विस|हे\s+गूगल/i.test(heard)){
           add(heard,'user');add('Hello boss.');speak('Hello boss');statusEl.textContent='Hello boss · Main background mein hoon.';
         }
       }else if(heard){
@@ -66,12 +66,15 @@ if(SR){
     // Network speech recognition is provided by the Chromium/OS service, not an offline engine.
     // Pause on hard permission/device errors; let the user retry after a network error.
     if(e.error==='not-allowed'||e.error==='service-not-allowed'||e.error==='audio-capture')wakePaused=true;
-    if(e.error==='network')wakePaused=true;
+    // Network failures can be temporary: allow a delayed restart instead of permanently disabling the mic.
+    if(e.error==='network')wakePaused=false;
   };
+  let restartTimer=null;let restartDelay=1200;
   recognition.onend=()=>{
     if(wakeMode&&!wakePaused){
-      statusEl.textContent='Background wake listening dobara start ho rahi hai…';
-      setTimeout(()=>{try{recognition.start()}catch(_){}},1200);
+      statusEl.textContent='Voice listening dobara start ho rahi hai…';
+      clearTimeout(restartTimer);
+      restartTimer=setTimeout(()=>{try{recognition.start();restartDelay=1200}catch(_){restartDelay=Math.min(restartDelay*2,10000);}},restartDelay);
     }else if(!wakeMode){statusEl.textContent='Listening band · Mic button se command bol sakte ho.';}
   };
   // Request mic access and start wake-word listening when the app opens.
