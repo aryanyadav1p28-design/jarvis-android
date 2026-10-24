@@ -4,16 +4,16 @@ This folder is a **separate Cloudflare Worker**, not GrowthPilot and not the exi
 
 ## Important free-tier limitation
 
-The Worker now uses OpenRouter's `qwen/qwen3.8-27b:free` endpoint, which is a free-hosted Qwen 3.8 27B model. This is **not** the `OBLITERATUS/Qwen3.8-27B-OBLITERATED` variant; the exact OBLITERATED variant did not have a reliably confirmed unlimited-free host. OpenRouter labels this endpoint free, but free endpoints can be rate-limited, busy, changed, or unavailable. Free access is not guaranteed forever. This setup makes no paid requests intentionally; do not add a payment method or purchase credits for this project.
+The Worker now uses the official Ollama Cloud OpenAI-compatible API at `https://ollama.com/v1/chat/completions`. It uses `gemma4:31b`, which is listed in Ollama's cloud API model catalog. The requested `OBLITERATUS/Qwen3.8-27B-OBLITERATED` model is not listed in the current Ollama cloud catalog, so this is a provider switch plus a model change for the initial test. Ollama Cloud usage limits and plan terms can change; an API key alone does not guarantee unlimited free inference. Check Ollama's usage page before relying on it, and do not purchase anything unless you choose to.
 
-Model: `qwen/qwen3.8-27b:free`
+Model: `gemma4:31b`
 
 ## Deploy as a new Worker (do not reuse any existing Worker)
 
 1. Create a **new** Cloudflare Worker named `jarvis-cloud-brain`.
 2. From this folder, deploy with Wrangler, or paste `src/index.js` into the Worker editor.
 3. Add Worker secrets in Cloudflare:
-   - `OPENROUTER_API_KEY`: an API key from OpenRouter. Use the free endpoint; do not buy credits or choose a paid model.
+   - `OLLAMA_API_KEY`: your Ollama Cloud API key.
    - `JARVIS_CLIENT_KEY`: a long, random value used to authenticate requests.
 4. Never put `HF_TOKEN` in the Android app, GitHub files, screenshots, or chat.
 5. Test `GET /health`; it should return `ok: true`.
@@ -38,7 +38,7 @@ Body:
 
 Successful response:
 ```json
-{"reply":"...","model":"qwen/qwen3.8-27b:free"}
+{"reply":"...","model":"gemma4:31b"}
 ```
 
 The Worker caps message size, message count, and response length. It intentionally does not store chat history or Drive files yet.
