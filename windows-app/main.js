@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, Tray, Menu, nativeImage, session } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { spawn } = require("node:child_process");
 const path = require("node:path");
@@ -56,6 +56,13 @@ async function checkForUpdates() {
   }
 }
 app.whenReady().then(() => {
+  // Explicitly allow microphone access for the local JARVIS renderer.
+  // Electron does not always inherit Chrome's saved microphone permission.
+  const ses = session.defaultSession;
+  ses.setPermissionCheckHandler((_webContents, permission) => permission === "media");
+  ses.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission === "media");
+  });
   ipcMain.handle("jarvis:command", async (_event, raw) => {
     const text = String(raw || "").trim().toLowerCase();
     if (!text) return { ok: false, message: "Command khaali hai." };
