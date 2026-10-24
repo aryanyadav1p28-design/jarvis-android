@@ -1,4 +1,4 @@
-const MODEL = "OBLITERATUS/Qwen3.8-27B-OBLITERATED";
+const MODEL = "qwen/qwen3.8-27b:free";
 const MAX_BODY_BYTES = 24_000;
 const MAX_MESSAGES = 12;
 const MAX_TEXT_CHARS = 6_000;
@@ -33,7 +33,7 @@ export default {
       return responseJson({ error: "Not found" }, 404);
     }
 
-    if (!env.HF_TOKEN || !env.JARVIS_CLIENT_KEY) {
+    if (!env.OPENROUTER_API_KEY || !env.JARVIS_CLIENT_KEY) {
       return responseJson({ error: "Backend secrets are not configured" }, 503);
     }
 
@@ -75,10 +75,10 @@ export default {
 
     let upstream;
     try {
-      upstream = await fetch("https://router.huggingface.co/v1/chat/completions", {
+      upstream = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
-          "authorization": `Bearer ${env.HF_TOKEN}`,
+          "authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
           "content-type": "application/json"
         },
         body: JSON.stringify({
