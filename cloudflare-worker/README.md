@@ -4,16 +4,16 @@ This folder is a **separate Cloudflare Worker**, not GrowthPilot and not the exi
 
 ## Important free-tier limitation
 
-The Hugging Face model page currently lists Featherless AI as an inference provider. Hugging Face's published free-user allowance is currently $0.10/month for Inference Providers and may change. This is enough only for a small test if the selected model/provider accepts the request; it is not a promise of ongoing, unlimited free use. This Worker does not create a paid Hugging Face endpoint. If the model/provider is unavailable under free credits, the request should fail rather than silently switching to a paid service.
+The Worker now uses OpenRouter's `qwen/qwen3.8-27b:free` endpoint, which is a free-hosted Qwen 3.8 27B model. This is **not** the `OBLITERATUS/Qwen3.8-27B-OBLITERATED` variant; the exact OBLITERATED variant did not have a reliably confirmed unlimited-free host. OpenRouter labels this endpoint free, but free endpoints can be rate-limited, busy, changed, or unavailable. Free access is not guaranteed forever. This setup makes no paid requests intentionally; do not add a payment method or purchase credits for this project.
 
-Model: `OBLITERATUS/Qwen3.8-27B-OBLITERATED`
+Model: `qwen/qwen3.8-27b:free`
 
 ## Deploy as a new Worker (do not reuse any existing Worker)
 
 1. Create a **new** Cloudflare Worker named `jarvis-cloud-brain`.
 2. From this folder, deploy with Wrangler, or paste `src/index.js` into the Worker editor.
 3. Add Worker secrets in Cloudflare:
-   - `HF_TOKEN`: a Hugging Face token with inference permissions.
+   - `OPENROUTER_API_KEY`: an API key from OpenRouter. Use the free endpoint; do not buy credits or choose a paid model.
    - `JARVIS_CLIENT_KEY`: a long, random value used to authenticate requests.
 4. Never put `HF_TOKEN` in the Android app, GitHub files, screenshots, or chat.
 5. Test `GET /health`; it should return `ok: true`.
@@ -38,7 +38,7 @@ Body:
 
 Successful response:
 ```json
-{"reply":"...","model":"OBLITERATUS/Qwen3.8-27B-OBLITERATED"}
+{"reply":"...","model":"qwen/qwen3.8-27b:free"}
 ```
 
 The Worker caps message size, message count, and response length. It intentionally does not store chat history or Drive files yet.
