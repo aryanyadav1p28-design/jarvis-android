@@ -9,7 +9,10 @@ function responseJson(data, status = 200) {
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
-      "x-content-type-options": "nosniff"
+      "x-content-type-options": "nosniff",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
+      "access-control-allow-headers": "content-type, x-jarvis-client-key"
     }
   });
 }
@@ -24,6 +27,19 @@ function constantTimeEqual(a, b) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-allow-methods": "GET, POST, OPTIONS",
+          "access-control-allow-headers": "content-type, x-jarvis-client-key",
+          "access-control-max-age": "86400",
+          "cache-control": "no-store"
+        }
+      });
+    }
 
     if (request.method === "GET" && url.pathname === "/health") {
       return responseJson({ ok: true, service: "jarvis-cloud-brain", model: MODEL });
@@ -43,16 +59,12 @@ export default {
     }
 
     const contentLength = Number(request.headers.get("content-length") || "0");
-    if (contentLength > MAX_BODY_BYTES) {
-      return responseJson({ error: "Request too large" }, 413);
-    }
+    if (contentLength > MAX_BODY_BYTES) return responseJson({ error: "Request too large" }, 413);
 
     let body;
     try {
       const raw = await request.text();
-      if (new TextEncoder().encode(raw).length > MAX_BODY_BYTES) {
-        return responseJson({ error: "Request too large" }, 413);
-      }
+      if (new TextEncoder().encode(raw).length > MAX_BODY_BYTES) return responseJson({ error: "Request too large" }, 413);
       body = JSON.parse(raw);
     } catch {
       return responseJson({ error: "Invalid JSON" }, 400);
@@ -67,9 +79,7 @@ export default {
       if (!item || !["system", "user", "assistant"].includes(item.role) || typeof item.content !== "string") {
         return responseJson({ error: "Each message needs a valid role and text content" }, 400);
       }
-      if (item.content.length > MAX_TEXT_CHARS) {
-        return responseJson({ error: "A message is too long" }, 400);
-      }
+      if (item.content.length > MAX_TEXT_CHARS) return responseJson({ error: "A message is too long" }, 400);
       messages.push({ role: item.role, content: item.content });
     }
 
@@ -81,31 +91,20 @@ export default {
           "authorization": `Bearer ${env.OLLAMA_API_KEY}`,
           "content-type": "application/json"
         },
-        body: JSON.stringify({
-          model: MODEL,
-          messages,
-          max_tokens: 500,
-          temperature: 0.3,
-          stream: false
-        })
+        body: JSON.stringify({ model: MODEL, messages, max_tokens: 500, temperature: 0.3, stream: false })
       });
     } catch {
       return responseJson({ error: "AI provider could not be reached" }, 502);
     }
 
-    const upstreamText = await upstream.text();
     let data;
     try {
-      data = JSON.parse(upstreamText);
+      data = JSON.parse(await upstream.text());
     } catch {
-      return responseJson({
-        error: "AI provider returned an unreadable response",
-        providerStatus: upstream.status
-      }, 502);
+      return responseJson({ error: "AI provider returned an unreadable response", providerStatus: upstream.status }, 502);
     }
 
     if (!upstream.ok) {
-      // Do not return provider headers, tokens, or internal response details to the app.
       return responseJson({
         error: "AI provider request failed",
         providerStatus: upstream.status,
@@ -114,10 +113,7 @@ export default {
     }
 
     const reply = data?.choices?.[0]?.message?.content;
-    if (typeof reply !== "string" || !reply.trim()) {
-      return responseJson({ error: "AI provider returned no text" }, 502);
-    }
-
+    if (typeof reply !== "string" || !reply.trim()) return responseJson({ error: "AI provider returned no text" }, 502);
     return responseJson({ reply: reply.trim(), model: MODEL });
   }
 };
