@@ -100,6 +100,15 @@ app.whenReady().then(() => {
     if (command.includes("help") || command.includes("madad") || command.includes("मदद")) return { ok: true, message: "YouTube, Google, WhatsApp, Gmail, Drive, Notepad, Calculator, Paint, Explorer, time aur update commands available hain." };
     return { ok: false, message: "Yeh command abhi supported nahi hai. Help bolkar supported commands dekho." };
   });
+  ipcMain.handle("jarvis:open-drive", async () => {
+    try {
+      await shell.openExternal("https://drive.google.com/drive/my-drive");
+      return { ok: true, message: "Google Drive ko default browser mein kholne ki request bhej di." };
+    } catch (error) {
+      console.error("Google Drive open failed:", error);
+      return { ok: false, message: "Drive nahi khul saka. Default browser aur internet connection check karein." };
+    }
+  });
   ipcMain.handle("jarvis:check-updates", () => { checkForUpdates(); return true; });
   ipcMain.handle("jarvis:app-version", () => app.getVersion());
   createWindow();
